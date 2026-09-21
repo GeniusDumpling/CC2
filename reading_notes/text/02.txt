@@ -1,0 +1,1248 @@
+
+--- PAGE 1 ---
+arXiv:2505.19837v1  [cs.MA]  26 May 2025
+Multi-Agent Reinforcement Learning in
+Cybersecurity: From Fundamentals to Applications
+Christoph R. Landolt
+Cyber-Defence Campus
+& Eastern Switzerland University of Applied Sciences
+Rapperswil, Switzerland
+https://orcid.org/0009-0002-7031-3291
+Christoph W ¨ursch
+Institute for Computational Engineering
+Eastern Switzerland University of Applied Sciences
+Rapperswil, Switzerland
+https://orcid.org/0000-0002-1337-3477
+Roland Meier
+Cyber-Defence Campus
+armasuisse Science and Technology
+Thun, Switzerland
+https://orcid.org/0000-0002-8268-9037
+Alain Mermoud
+Cyber-Defence Campus
+armasuisse Science and Technology
+Thun, Switzerland
+https://orcid.org/0000-0001-6471-772X
+Julian Jang-Jaccard
+Cyber-Defence Campus
+armasuisse Science and Technology
+Thun, Switzerland
+https://orcid.org/0000-0002-1002-057X
+Abstract—Multi-Agent Reinforcement Learning (MARL) has
+shown great potential as an adaptive solution for addressing
+modern cybersecurity challenges. MARL enables decentralized,
+adaptive, and collaborative defense strategies and provides an
+automated mechanism to combat dynamic, coordinated, and
+sophisticated threats. This survey investigates the current state
+of research in MARL applications for automated cyber defense
+(ACD), focusing on intruder detection and lateral movement
+containment. Additionally, it examines the role of Autonomous
+Intelligent Cyber-defense Agents (AICA) and Cyber Gyms
+in training and validating MARL agents. Finally, the paper
+outlines existing challenges, such as scalability and adversarial
+robustness, and proposes future research directions. This also
+discusses how MARL integrates in AICA to provide adaptive,
+scalable, and dynamic solutions to counter the increasingly
+sophisticated landscape of cyber threats. It highlights the
+transformative potential of MARL in areas like intrusion
+detection and lateral movement containment, and underscores
+the value of Cyber Gyms for training and validation of AICA.
+This paper was originally presented at the NATO Science
+and Technology Organization Symposium (ICMCIS) organized by
+the Information Systems Technology (IST) Panel, IST-209-RSY –
+the ICMCIS, held in Oeiras, Portugal, 13-14 May 2025
+Index Terms —Cybersecurity, Game Theory, Multi-Agent Re-
+inforcement Learning, Reinforcement Learning, Cyber Gyms,
+Decentralized and Scalable Cyber Defense, Automated Cyber
+Defense, Autonomous Intelligent Cyber-defense Agents.
+I. I NTRODUCTION
+The World Economic Forum estimates that cybercrime will
+cost the global economy $10.5 billion in 2025 [1]. These
+costs are influenced by the rapid evolution of cyber threats,
+which often challenge conventional defense mechanisms. Tra-
+ditional approaches to cybersecurity, which are often static and
+reactive, might struggle to effectively counter dynamic and
+sophisticated threats [2]. As a result, adaptive and proactive
+This research is supported by armasuisse Science and Technology.
+methods show great potential to respond to these developments
+and improve resilience against emerging risks [3], [4].
+To this end, DARPA launched the Cyber Grand Chal-
+lenge [5] to develop autonomous systems that can detect
+vulnerabilities and apply patches autonomously. This initiative
+culminated with systems such as Mayhem [6], Xandra [7],
+and Mechanical Phish [8] demonstrating autonomous defense
+at machine speed by identifying and patching vulnerabilities
+in real-time [5]. However, while these systems could react
+quickly to known threats, they could not adapt independently
+to new, unforeseen threats [9].
+To detect such threats, Intrusion Detection Systems (IDSes)
+typically employ in addition to static rule-based methods ,
+which rely on predefined signatures or patterns to iden-
+tify known vulnerabilities, more dynamic anomaly-based ap-
+proaches, which use behavioral baselines and machine learn-
+ing to detect deviations indicative of previously unknown vul-
+nerabilities [10]. In addition, techniques such as fuzzing, where
+systems are tested with unexpected or corrupted inputs to
+identify bugs or crashes, have uncovered known and unknown
+vulnerabilities. These approaches help improve cybersecurity
+by automating the detection of vulnerabilities and enabling
+automated defense [11].
+Building on these advances, Reinforcement Learning (RL)
+presents a promising framework for developing more dynamic
+and adaptive systems. RL can overcome the limitations of
+traditional approaches by enabling agents to learn indepen-
+dently through trial and error and adapt to evolving attack
+strategies [12], [13]. This dynamic adaptation is critical for
+detecting new attack strategies and attack graphs that rule-
+based systems cannot identify [14], [15]. RL’s continuous
+learning capabilities enable it to adapt to new attack patterns
+over time, making it more robust and able to defend against
+unknown threats [14]–[16].
+Real-world scenarios are often dynamic, as attackers con-
+duct coordinated attacks while defenders must protect dis-
+
+--- PAGE 2 ---
+tributed systems; these dynamics are challenging to model and
+train effectively with a single-agent approach. Multi-Agent
+Reinforcement Learning (MARL), in contrast, offers collab-
+orative and adversarial interactions between agents, enabling
+realistic training and adaptive strategies in complex, distributed
+environments [17]. MARL has shown great promise for en-
+abling adaptive and collaborative defense strategies [18]–[20].
+This survey addresses the need for innovative approaches to
+modern cybersecurity challenges, focusing on how MARL and
+the development of AICA can provide adaptive, scalable, and
+dynamic solutions to counter the increasingly sophisticated
+landscape of cyber threats. It focuses on key areas such as
+moving target defense, and lateral movement containment
+because these areas are critical for detecting threats, enhancing
+system resilience, and countering sophisticated attacks like ad-
+vanced persistent threats, where MARL can have the greatest
+impact. Unlike prior reviews, this paper emphasizes MARL’s
+ability to handle multi-agent dynamics in adversarial settings.
+It focuses on its promising use cases for the development of
+AICA [21], which are adaptive, self-learning systems designed
+to detect, mitigate, and respond to cyber threats in real-time
+within ACD applications.
+This paper is structured as follows: Section II reviews
+related surveys and motivates this paper, Section III dis-
+cusses multi-agent interactions and MARL models, Section
+IV explores training environments for the training of AICAs,
+Section V highlights practical applications of MARL in cy-
+bersecurity, and Section VI concludes the state of research in
+the field.
+II. R ELATED SURVEYS AND MOTIVATION
+The literature on MARL covers various research topics,
+with general reviews and books such as [22]–[24]. However,
+the application of reinforcement learning in cybersecurity is
+still relatively new, and as such, only a few review papers
+specifically address the current state of this research. Notable
+reviews that explore the use of MARL in cybersecurity include
+those by S. Oesch et al. [20], S. Vyas et al. [18], G. Palmer
+et al. [19], and S. Finistrella et al. [25].
+In contrast to these existing reviews, our paper covers
+the foundations of MARL and investigates its potential for
+decentralized, collaborative defense strategies, particularly in
+dynamic and adversarial scenarios. As computer networks con-
+tinue to evolve and grow increasingly complex, the challenges
+in cybersecurity are intensifying. Recent research highlights
+the role of evolutionary game methods in enhancing defensive
+capabilities through internal decision-making and learning
+mechanisms [26]. Building on this foundation, we survey the
+advantages of collaborative decision-making in multi-agent
+systems, emphasizing coordinated interactions among defense
+agents using MARL. While other surveys focus primarily on
+specific RL techniques for specific cybersecurity applications,
+our work focuses on the foundations of MARL frameworks
+and their potential to handle complex, multi-agent interactions
+such as intrusion detection and lateral movement containment.
+Additionally, we explore training environments for dynamic
+simulations and testing adaptive strategies to bridge the gap
+between simulation and practical use of AICAs.
+A. Motivation of MARL for Cyber Defense
+RL has shown potential in cyber defense due to its ability
+to discover new strategies through trial and error without
+relying on new data. However, the applicability of Single-
+Agent Reinforcement Learning (SARL) in large and dynamic
+environments such as Cyber-Physical Systems (CPS) and com-
+puter networks has some limitations. This section discusses
+these limitations and how MARL overcomes them.
+1) Lack of Scalability: In SARL, an agent controls an
+entire environment and learns from its interaction with it.
+As described in Section I (Introduction), this approach has
+scalability issues in complex environments such as distributed
+systems, where decentralized and real-time decisions are nec-
+essary. Studies on state abstractions [27], [28] show that the
+computational complexity of SARL increases exponentially
+with larger state and action spaces, making learning impracti-
+cal in such large systems.
+MARL addresses this issue by providing a framework to
+train distributed agents, which can learn and act locally while
+pursuing system-wide goals. As described in Section III-A,
+these agents’ training is often formulated as a partially observ-
+able stochastic game (POSG), where agents act under partial
+observability and receive rewards based on their actions. A
+specific subclass of POSGs, decentralized partially observable
+Markov decision processes (Dec-POMDPs), features decen-
+tralized policies and often considers joint rewards [24]. In
+MARL, Dec-POMDPs enable agents to act independently and
+collaboratively. However, addressing scalability remains an
+active area of research and often necessitates approximations
+or abstractions like factored representations, shared policies,
+or hierarchical approaches [28].
+2) Inability to Handle Multi-Agent Dynamics: Multiple
+entities (attackers, defenders, neutral agents) interact within
+the same shared environment in cybersecurity scenarios. This
+challenge complicates the causality between action and obser-
+vation in SARL, as SARL cannot effectively learn the different
+objectives and interactions between multiple agents. Research
+in adversarial learning [29] demonstrates that single-agent ap-
+proaches fail to generalize effectively when multiple opposing
+agents dynamically change their strategies due to the non-
+stationarity of the learning problem in multi-agent settings.
+To address this, MARL uses frameworks like Nash Equilibria
+[30] to provide a theoretical basis for optimizing strategies in
+adversarial settings. Further methods like value decomposition
+networks [31] are effective in cooperative settings.
+3) Coordination Challenges: In distributed systems such
+as computer networks, cooperative behavior (exchange of
+information, communication) across different subsystems is
+often required. Tasks such as simultaneous threat detection
+and resource allocation cannot be efficiently accomplished by
+SARL [32]. MARL facilitates such coordination and collabo-
+ration challenges by enabling information exchange between
+
+--- PAGE 3 ---
+agents and often leveraging global rewards. Techniques such
+as value decomposition [31] and state-action abstractions [33]
+provide tools for efficient collaboration, leading to improved
+robustness and performance in applications such as cyber
+defense.
+III. M ODELS OF MULTI-AGENT INTERACTION
+A Multi-Agent System (MAS) consists of agents that coex-
+ist in a shared environment to achieve individual or collective
+goals. These agents observe their environment, communicate
+with each other, and perform actions autonomously. Depend-
+ing on the scenario, agents may compete for resources or col-
+laborate to achieve shared objectives. Constraints such as par-
+tial observability—where each agent only observes a portion
+of the environment—and limited communication bandwidth
+significantly influence their strategies and behaviors [23].
+Agent-environment interactions follow a closed-loop dynamic:
+agents take actions, the environment transitions states, and
+feedback is provided as reward signals. Fig. 1 visualizes such
+a closed-loop RL system with one agent:
+Agent
+Environment
+action atrt+1st+1
+state st reward rt
+Fig. 1. Reinforcement Learning (RL) control loop, inspired by Sutton et
+al. [34]. The figure illustrates the interaction between a RL-Agent and its
+environment over discrete time steps. At each step t, the agent observes the
+current state st and reward rt from the environment, selects an action at,
+and sends it to the environment. The environment then transitions to a new
+state st+1 and provides a new reward rt+1, completing the loop.
+These iterative processes drive adaptation and learning,
+forming the foundation for mathematical models of agent
+dynamics discussed in the following sections [35].
+A. Game-Based Models
+The formal models and frameworks of interactions in multi-
+agent environments are grounded in game theory, providing the
+foundation for understanding and designing these systems and
+RL paradigms. S. Albrecht et al. [24] describe a hierarchy of
+these models, which is illustrated in Fig. 2:
+1) Repeated Normal-Form Games extend normal-form games,
+representing single interactions between agents, by repeat-
+ing these interactions sequentially over a finite or infinite
+horizon. In cybersecurity, these games model the interac-
+tions between attackers and defenders, such as allocating
+resources (e.g., honeypots) to defend critical network com-
+ponents against evolving attack strategies over time [36].
+By identifying equilibrium points, these models enable
+robust and optimal defense mechanisms in dynamic threat
+environments [37].
+2) Stochastic Games extend Markov Decision Processes
+(MDPs) to multi-agent settings, where the joint actions
+of multiple agents influence both the transition dynamics
+and the rewards. Agents aim to optimize strategies while
+accounting for these interdependencies. For example, in
+cybersecurity, stochastic games can also be used to model
+some more sophisticated interactions between attackers
+and defenders, where the probability of transitioning to
+a new system state (e.g., a compromised or secure state)
+depends on the joint actions of both parties, such as
+an attacker choosing specific exploitation strategy and a
+defender choosing a response (e.g., blocking an IP-address)
+[38]. Another application is securing industrial control
+systems, where stochastic games capture the uncertainty
+in adversarial actions and environmental factors, allowing
+defenders to predict the likelihood of system breaches and
+proactively allocate resources to minimize risks [39].
+3) Partially Observable Markov Decision Processes
+(POMDPs) address situations where agents have limited
+visibility of the environment and must rely on partial
+observations to make decisions. In cybersecurity, POMDPs
+can model intrusion detection systems where defenders
+must make decisions based on incomplete and noisy data
+about potential threats in a network [40].
+4) Decentralized POMDPs (Dec-POMDPs) is an advanced
+extension of POMDPs and involves multiple agents oper-
+ating under partial observability without centralized coor-
+dination. They base decisions on local observations while
+receiving a shared reward.
+For example, in cybersecurity, Dec-POMDPs can be used
+to model the collaboration of distributed IDSes, where
+agents monitor different parts of a network and must
+collaboratively identify and respond to attacks based on
+their local observations [41].
+ Partially Observable Stochastic Game n agents - m states - partially observed
+Stochastic Gamen agents - m states - fully observed
+Repeated Normal-Form Gamen agents - 1 state
+Fig. 2. Nested structure of game models. The Partially Observable Stochastic
+Game includes n agents and m partially observable states. A simpler model is
+the Stochastic Game, which assumes the complete observability of the states,
+while the Repeated Normal-Form Game involves n agents interacting in a
+single state. Adapted from [24].
+These game-theoretic frameworks allow modelling complex
+inter-agent dynamics and address uncertainty and partial ob-
+servability in centralized and decentralized scenarios.
+MARL builds on these principles by including learning-
+based methods to find an equilibria solution. These methods
+allow agents to approximate optimal strategies and adapt to dy-
+namic environments. By leveraging approximation techniques,
+MARL provides a scalable approach to finding solutions
+in high-dimensional, multi-player systems where the direct
+computation of equilibria is computationally expensive and
+often infeasible [24].
+
+--- PAGE 4 ---
+B. Reinforcement Learning-Based Interactions
+MARL is a particular use case of RL that investigates
+and models such multi-agent dynamics. As in RL, the agents
+are motivated by maximizing their rewards. By designing
+this reward, the self-interested agents can pursue mutual or
+opposite interests by competing. This section explores how
+the RL paradigm can be extended to multiple agents. This
+extension enables the development of decentralized systems
+or modeling interactions among multiple actors.
+1) Learning in a Multi-agent Environment: MARL uses
+algorithms to learn optimal policies for a set of agents in
+a MAS [24]. Similar to SARL, the policies are learned via
+trial and error to maximize the agents’ cumulative rewards.
+Unlike pure trial and error, MARL incorporates informed ex-
+ploration based on previously learned policies, addressing the
+exploration-exploitation dilemma by balancing the discovery
+of new actions with leveraging those currently believed to be
+optimal. While exploration can uncover better actions, it may
+also result in lower rewards during the learning process. Fig.
+3 shows a basic schematic of the MARL training loop.
+Environment
+The joint action modifies the Environment state
+Agent 1
+- Goals
+- Strategy
+- Beliefs
+Agent 2
+- Goals
+- Strategy
+- Beliefs
+Agent 2
+- Goals
+- Strategy
+- Beliefs
+observation
+& reward
+observation
+& reward
+observation
+& reward
+action
+action
+action
+joint action
+...
+Communication Network
+Fig. 3. Interaction between multiple agents, an optional communication
+network, and the environment. Each agent can have its own goals, strategies,
+and beliefs. The agent receives individual observations and rewards from the
+environment. The actions of all agents are combined into a joint action that
+influences the state of the environment. This joint action introduces complexity
+in determining the causal relationship between an individual agent’s actions
+and the resulting rewards and observations.
+a) MARL Training Paradigms: In MARL scenarios,
+agents operate in a game-theoretic framework, where their
+actions and strategies influence each other. An optimum of
+the agent’s interplay is achieved by reaching an equilibrium
+point—a state in which no agent is incentivized to deviate from
+its chosen strategy. The pursuit of such equilibria is guided by
+three fundamental training schemes: cooperative, competitive,
+and mixed-interests:
+• Cooperative: Cooperative MARL focuses on agents learn-
+ing to work together to achieve a common goal while max-
+imizing a shared reward. The reward structure is designed
+to reinforce collective performance, as illustrated in Fig. 4,
+such as distributed intrusion detection [42].
+Environment
+DefenderAgent nDefenderAgent 2DefenderAgent 1
+...
+Fig. 4. Cooperative Defense of a System by n Distributed Defenders
+through a cooperative MARL-System, where the defender agents collaborate
+to maximize their expected reward Es,u[R(s, u)], with R(s, u) denoting
+the reward received when all agents take a joint action u in state s. Each
+defender agent operates independently, optimizing its policy πi based on local
+observations and rewards.
+This collaborative process can described through a math-
+ematical framework that expresses the joint actions and
+policies of agents in a cooperative setting, as outlined below:
+- Let u = (u1, u2, . . . , uN) represent the joint action of all
+agents, where ui is the action taken by agent i. Actions
+may be executed either in parallel or sequentially. In
+sequential systems, each agent acts one at a time, often
+determined by a predefined order or environmental rules,
+whereas, in parallel systems, all agents act simultane-
+ously, with potential tie-breaking mechanisms applied to
+resolve conflicting actions [43].
+- Let s represent the state of the environment.
+- Let πi(ui|s) be the policy of agent i, defining the prob-
+ability of taking action ui given state s.
+- Let R(s, u) be the collective reward received from the
+environment based on the state s and the joint action
+u. The collective reward can be expressed as the sum
+of individual rewards, where each agent i receives a
+reward based on the global state s and its own action
+ui: R(s, u) = PN
+i=1 Ri(s, ui), where N is the number
+of agents, and Ri(s, ui) is the reward received by agent
+i according to its policy πi(ui|s).
+Each agent aims to contribute to maximizing the collec-
+tive reward by learning an optimal policy π∗
+i (ui|s). The
+optimization of the collective reward results in the global
+optimization objective max{πi}N
+i=1
+E[R(s, u(πi))], where
+E[R(s, u)] denotes the expected reward given state s and
+joint action u. The learning process of each agent contributes
+to finding a Nash equilibrium or a Pareto-efficient set of
+strategies that ensure the collective maximization of R(s, u).
+• Competitive: In competitive scenarios, agents try to max-
+imize their own rewards while minimizing their opponents
+(zero-sum games), e.g., chess and Go, or in attacker-
+defender scenarios in cybersecurity [42].
+Fig. 5 visualizes a basic schematic of the MARL training
+loop in an adversarial setup. In a zero-sum attacker-defender
+game, the attacker chooses actions x from a set A, and
+the defender chooses actions y from a set D, with the
+payoff matrix M[i][j] representing the attacker’s reward
+when action i is met by the defender’s j. The defender’s
+payoff is −M[i][j]. Mixed strategies x (attacker) and y
+(defender) represent probabilistic choices, summing to 1.
+The expected payoff for the attacker is E(x, y) = xT M y,
+with the defender minimizing E(x, y). The game’s solution
+
+--- PAGE 5 ---
+Environment DefenderAgentAttack Agent
+Fig. 5. Zero-sum interaction between an attacker and defender agent in an
+environment. The attack agent aims to maximize its reward Rattacker(x, y) =
+E(x, y) by selecting actions x. In contrast, the Defender Agent aims to
+minimize its reward Rdefender(x, y) = −E(x, y) by choosing actions y.
+is a Nash equilibrium, satisfying maxx miny E(x, y) =
+miny maxx E(x, y).
+• Mixed-Interest: Agents engage in cooperative and com-
+petitive dynamics where they might have partially aligned
+and partially conflicting goals, as illustrated in Fig. 6. This
+situation usually shows up in trading, traffic, and multi-
+player video games [44].
+Environment
+DefenderAgent mAttack Agent n
+DefenderAgent 2
+DefenderAgent 1
+...
+Attack Agent 1
+Attack Agent 2...
+Fig. 6. Adversarial setup where n attack agents maximize their expected
+reward E[R(s, uA, uD)], while m defender agents minimize it. Both groups
+optimize their respective policies ( πA,i and πD,j ) and interact through a
+shared environment, with joint actions uA and uD defining state transitions
+and rewards.
+Each attacker i optimizes its policy πA,i(uA,i|s) to max-
+imize the collective reward for the attackers, aiming to
+achieve a coordinated strategy represented by the joint
+attacker policy ΠA(uA|s). Conversely, each defender j
+optimizes its policy πD,j(uD,j |s) to minimize the attackers’
+reward (equivalently, maximize their reward), with their
+joint policy represented by ΠD(uD|s).
+Globally, the problem is formulated as a zero-sum optimiza-
+tion challenge where the attackers and defenders collectively
+aim to find a Nash equilibrium, which is achieved when
+the attackers maximize their global reward JA(ΠA, ΠD),
+while the defenders minimize it, ensuring that neither group
+can unilaterally improve their outcome. The equilibrium
+defines the value v of the game, where the attackers’
+global reward equals v and the defenders’ global reward
+equals −v, ensuring the zero-sum property. The collective
+optimization is achieved through iterative policy updates and
+RL techniques to converge toward these equilibrium policies
+Π∗
+A and Π∗
+D.
+C. MARL Algorithms and Frameworks
+This section summarizes the most common algorithms in
+MARL in Table I, focusing on their foundational principles,
+game-theoretic connections, and unique characteristics tailored
+to diverse multi-agent scenarios.
+Fig. 7 visualizes the centralized training and decentralized
+execution framework. During training, agents learn centralized
+Q-functions, Qi(x, a1, ..., aN), that take as input the joint
+actions and states of all agents to optimize each agent’s policy,
+πi. This centralized action-value function evaluates joint ac-
+tions in relation to the global state x, which could consist of all
+agents’ observations x = (o1, ..., oN), or additional available
+state information.
+In competitive dynamics , each agent optimizes its own
+centralized Q-function, Qi, in order to optimize its indi-
+vidual reward while considering the joint actions and state
+(x, a1, ..., aN). The reward structure differs for each agent to
+reflect their opposing objectives.
+In collaborative dynamics, the centralized Q-function evalu-
+ates the joint actions of all agents to maximize a shared global
+reward, which is uniform across agents, encouraging them to
+optimize collective performance.
+In mixed-interest dynamics , the centralized Q-function in-
+corporates individual and shared reward components. This
+reward components allows agents to balance competing and
+cooperating incentives.
+Training
+ExecutionPolicy Agent 1 Policy Agent N
+1o a No a
+Central Q-
+Function 1
+Environment
+Central Q-
+Function N
+Fig. 7. Centralized training and decentralized execution framework in
+MADDPG. During training, each agent is associated with its own centralized
+Q-function ( Q1 to QN ), which uses the global state and joint actions of
+all agents to optimize its policy ( π1 to πN ). At execution, each agent
+acts based on its decentralized policy derived during training, relying only
+on local observations ( o1 to oN ) and actions ( a1 to aN ). This structure
+effectively allows agents to adapt to competitive, collaborative, and mixed-
+interest dynamics.
+IV. C YBER GYMS : SIMULATION FRAMEWORKS
+Cyber Gyms are dynamic, interactive environments for the
+training of MARL agents, addressing the limitations of static
+datasets that quickly become outdated or biased in rapidly
+evolving cybersecurity settings. These platforms enable agents
+to develop robust, cooperative, and adaptive strategies by
+simulating diverse, unpredictable, and complex attack patterns.
+Tools like CyberBattleSim [52] and NASimEmu [53] foster
+self-play and iterative learning, prepare agents for real-world
+adversarial scenarios and support sophisticated architectures
+like Autonomous Intelligent Cyber-defense Agents (AICA).
+
+--- PAGE 6 ---
+TABLE I
+MARL A LGORITHMS , G AMES , AND TRAINING FRAMEWORKS
+Name /
+Type of Game
+Algorithm Description Key Characteristics
+Q-learning
+Stochastic Games
+Classical Q-learning adapted for multi-agent environments by
+treating agents as self-interested players striving to maximize
+their individual rewards [24].
+- Agents are independent learners.
+- Leads by default to non-cooperative dynamics unless coordinated.
+- Often suffers from instability due to non-stationarity caused by
+simultaneous learning [45].
+CTDE
+Cooperative Games
+Centralized Training with Decentralized Execution (CTDE) is a
+training framework where agents optimize policies using a
+centralized critic, while during execution, they make decisions
+independently based on local observations [46].
+- Centralized critic enables inter-agent coordination during training,
+mitigates non-stationarity and provides stable learning signals.
+- Decentralized execution for scalability.
+- One of the most prevalent paradigms in cooperative games [46].
+VDN
+Fully Cooperative
+Games
+A Value Decomposition Network (VDN) decomposes a joint
+Q-value received by a single global reward function into additive
+components for individual agents, simplifying learning in
+cooperative games [47].
+- Best for simple cooperative dynamics.
+- Limited in representing complex dependencies and complex
+inter-agent dynamics [47].
+IPPO
+Independent
+Stochastic Games
+Independent Proximal Policy Optimization (IPPO) adapts the
+Proximal Policy Optimization (PPO) algorithm [48] for
+independent agents who maximize individual rewards based on
+local observations, treating them as self-interested entities [49].
+- Independent policy optimization for each agent.
+- Often results in non-cooperative dynamics and limited coordination.
+- Simple but risks inefficiency in collaborative scenarios [24].
+MAPPO
+Cooperative
+Games
+Multi-Agent Proximal Policy Optimization (MAPPO) builds on
+PPO [48] with a centralized critic to support cooperation among
+agents during training, while execution remains decentralized
+[50].
+- Centralized critic during training for global value sharing.
+- Balances cooperation during training and scalability in
+decentralized execution.
+- Effective for cooperative multi-agent tasks [24].
+MADDPG
+Mixed-Motive
+Games
+Multi-Agent Deep Deterministic Policy Gradient (MADDPG)
+extends Deep Deterministic Policy Gradient (DDPG) [51] for
+multi-agent settings, enabling learning of both cooperative and
+competitive dynamics via a centralized Q-function [44]. This is
+illustrated in Fig. 7.
+- Centralized critic for joint optimization.
+- Deterministic policies boost stability in continuous action spaces.
+- The support of cooperative and competitive dynamics, makes it
+particularly suitable for complex, mixed-motive environments.
+- Stable in continuous action spaces [44].
+A. APIs to Train MARL Agents
+MARL APIs allow the training of multiple RL agents in the
+same environment by considering interactions in cooperative,
+competitive, and mixed-interest scenarios. Unlike single-agent
+environments, MARL environments must handle the complex-
+ity of agent interactions, including dynamic strategy adapta-
+tion, communication, and emergent behaviors. Standardized
+MARL environments, such as PettingZoo [43], address these
+challenges by offering standardized APIs and supporting two
+different execution paradigms: parallel execution and Agent-
+Environment Cycle (AEC) models.
+Parallel execution assumes all agents act simultaneously,
+simplifying environments with large numbers of agents. How-
+ever, the parallel execution can lead to conflicts such as race
+conditions. Race conditions occur when the outcome of the
+environment depends on the order or timing of conflicting
+actions, which leads to unpredictable or non-deterministic
+behavior. Tie-breaking can be used to resolve such conflicts,
+applying rules for conflict resolution or randomness.
+In contrast, the AEC model executes its actions sequentially.
+This prevents race conditions by ensuring that each agent
+observes an updated state after the previous agent’s action.
+The AEC model allows the attribution of rewards to specific
+actions and simplifies debugging. Widely used APIs for the
+Training of MARL agents are PettingZoo [43], MARLlib [54],
+PyMARL [55], or OpenSpiel [56].
+B. Cyber Gyms and Their Role in AICA Development
+Simulations and emulations of real networks are essential
+for training RL-based autonomous cyber agents. While sim-
+ulations provide an abstract, fast, and scalable environment
+ideal for training, they often face a ”reality gap,” where
+the simplifications fail to replicate real-world complexities.
+In contrast, emulations utilize virtual machines and realistic
+configurations to mirror actual network behaviors but are
+slower and less scalable due to their resource-intensive nature
+[53]. Tools like NASimEmu [53] and VINE [57] bridge this
+gap by providing realistic environments for policy evaluation.
+These environments test architectures like AICA in dynamic
+threat scenarios, advancing multi-agent reinforcement learning
+(MARL) integration for proactive and collaborative defenses
+[25], [53], [58]. CyberGyms, such as CyberBattleSim [52],
+play a crucial role in exploring these dynamics. CyberBat-
+tleSim models an attacker moving laterally through a network
+to target specific systems (Capture-The-Flag Exercise). T.
+Kunz et al. [17] extended this environment with a defense
+agent, enabling the training of attacker-defender strategies
+in a multi-agent setting. However, a key challenge remains
+in applying agents trained in simulated environments, such
+as CyberBattleSim, to real-world network environments due
+to the persistent reality gap. The following sections discuss
+the cyber gyms identified during the study, addressing their
+strengths and weaknesses.
+One of the best-known environments is CyberBattleSim,
+developed by Microsoft to model attacks on computer net-
+
+--- PAGE 7 ---
+works. Initially designed as a SARL environment to simulate
+an attacker moving laterally through a network to compromise
+specific systems, CyberBattleSim is a powerful showcase to
+show the power of RL in red-team automation. T. Kunz et al.
+[17] extended the framework to include a defense agent, trans-
+forming it into a multi-agent setting where attacker-defender
+strategies can be trained. The framework has its strengths in
+its simple integration of SARL algorithms and is effective
+for training basic adversarial actions. Its limitations lie in
+the abstracted simulations, which lack real-world applicability,
+and its limited scenarios, which struggle to simulate highly
+complex setups.
+H. Emerson et al. [59] introduced CybORG++, an environ-
+ment focusing on multi-agent and adversarial learning in cyber
+scenarios. Built on the earlier CAGE CybORG framework
+[60], CybORG++ supports the training of MARL agents and
+is designed to model real-world network defense challenges.
+It enables agents to train adversarial attackers in a red vs.
+blue team setup. The framework’s benefits are its support for
+multi-agent learning and flexibility for modeling adversarial
+scenarios. Despite these strengths, CybORG++ faces limita-
+tions in scalability for complex, large-scale networks and a
+simulation reality gap. Notably, CybORG has been integrated
+into the CAGE 4 Challenge, a MARL-based environment
+for evaluating autonomous cyber defense agents under partial
+observability and limited communication [61].
+NASimEmu [53] allows the simulation of network attacks.
+It combines simulation and emulation to create realistic cyber-
+attack scenarios, enabling the training of sophisticated SARL
+agent policies for cyber attacks. The strength of this envi-
+ronment lies in its high realism for attack-defense scenarios
+through an emulation option and its support for integrat-
+ing real-world penetration testing tools. However, a notable
+downside is that setting up an emulation environment is
+resource-intensive and requires significant effort to configure
+and maintain emulated scenarios. Another limitation is that the
+environment is restricted to SARL agent training.
+VINE [57] is a robust cyber experimentation environment
+developed to provide a scalable and configurable platform for
+studying moving target defenses (MTDs), which are char-
+acterized by their ability to adapt and modify system states
+to enhance security. It allows to create, deploy, and execute
+complex network scenarios with dynamic background traffic
+and attack conditions. Designed for high flexibility, VINE
+facilitates the evaluation of adaptive cyber defense strategies
+through detailed instrumentation and monitoring.
+C. Reference Architecture for AICA
+R. Meier et al. [62] and A. Kott et al. [21] provide reference
+architectures for automated and adaptive cyber defense, aimed
+at enabling NATO to counter sophisticated adversaries in
+contested battlefields by deploying AICA capable of detecting
+and neutralizing enemy malware within military tactical net-
+works. The reference architecture incorporates five high-level
+functions:
+• Sensing and World State Identification: Enables agents to
+acquire and process data from their environment, identifying
+potential risks and triggering appropriate defense mecha-
+nisms.
+• Planning and Action Selection: Allows agents to gener-
+ate and prioritize response plans, selecting optimal actions
+based on the situation.
+• Action Execution: Ensures the implementation and moni-
+toring of defense actions, adjusting strategies dynamically
+to mitigate threats.
+• Collaboration and Negotiation: Facilitates cooperation
+among agents or with centralized command systems, en-
+hancing response coordination.
+• Learning: Supports continuous improvement of defense
+strategies through experience and feedback integration.
+Decentralized vs. Centralized Architectures: The AICA
+framework supports two different implementation approaches:
+• Centralized Architectures: These involve a master-agent
+system where decision-making and data processing are
+centralized. One possible implementation of such a system
+can be realized with SARL.
+• Distributed Architectures: Agents self-organize in a dis-
+tributed system to detect and defend against cyberattacks,
+enhancing resilience and fault tolerance, though with added
+complexity. Such systems can be implemented with MARL.
+V. A PPLICATIONS OF MARL IN CYBER -D EFENSE
+This section highlights the most significant applications of
+MARL in current research and its role in addressing critical
+challenges like intrusion detection, moving target defense, and
+coordinated threat mitigation.
+A. Intrusion Detection and Adaptive Responses
+RL agents improve intrusion detection by learning adaptive
+policies that improve detection rates and reduce false positives
+[63], [64]. However, as highlighted in the surveys [19], [25],
+SARL is limited by its inability to effectively manage scalabil-
+ity, dynamic interactions, and decentralized scenarios. MARL
+overcomes these issues by enabling adaptive and collaborative
+strategies across multiple agents, which is crucial for handling
+the complexity and variability of modern cyber threats (Fig.
+8).
+B. Red and Blue Team Dynamics
+T. Kunz et al. [17] demonstrated that adversarial training
+of an attacker (red agent) against a defender (blue agent) en-
+hances the defender’s ability to counter sophisticated attacks.
+This section provides an overview of using RL to train both
+attack and defense agents. Such an adversarial setup can be
+formulated as a zero-sum game, emphasizing the importance
+of training strong attack agents to facilitate the development
+of equally robust defense agents.
+
+--- PAGE 8 ---
+Internet
+Internal Network
+DMZ
+Computer
+Systems
+Server
+Systems
+IDS-
+Management-
+Station
+Mail
+Relay
+Web Application
+Firewall (WAF)
+External
+Packet
+Filter 
+Internal
+Packet
+Filter 
+Firewall
+IDS Host Sensor
+Critical
+Server
+IDS Network Sensor
+Single-Agent Reinforcement Learning (SARL)
+Network traffic
+collection
+Data cleaning
+and pre-
+processing
+Machine-
+Learning
+Module
+Alerting
+Component
+RL-Agent
+RL-Agent
+RL-Agent
+RL-Agent
+RL-Agent RL-Agent
+RL-Agent
+Option1: Single-Agent RL
+Option 2: Multi-Agent RL
+Fig. 8. Comparison of SARL and MARL for Intrusion Detection System
+(IDS) architectures. In the SARL approach, sensors are deployed at key points
+(e.g., firewalls, web application firewalls, and critical servers) to collect and
+analyze network data centrally at an IDS-Management Station managed by
+a single RL-Agent. In contrast, the MARL approach deploys multiple RL-
+Agents that collaborate and share information across the network, enhancing
+decentralized detection of malicious activities.
+Red Teaming: C. Seifert et al. [52] introduced CyberBat-
+tleSim, a platform for training RL-based attackers in abstract
+enterprise networks with predefined vulnerabilities for lateral
+movement (Fig. 9). Attacker performance is evaluated based
+on the number of steps to achieve network ownership and
+cumulative rewards over training epochs. This platform is
+essential for reinforcement learning in red teaming. It pro-
+vides a controlled, repeatable environment to develop and
+benchmark advanced attacker strategies, enabling systematic
+improvement and understanding of RL-based approaches in
+cybersecurity. Based on this concept, various other environ-
+ments have been developed for training attack agents with RL,
+such as NaSimEmu [53], CYBERSHIELD [65], CSLE [66] or
+CybORG++ [59].
+F3
+R3
+R2
+R1
+Internet
+F1
+F2
+S1
+S2 S3 H1 H2
+H3
+R4
+H6
+H5
+H4
+S4
+S5 S6
+S7
+F3
+R3
+R2
+R1
+Internet
+F1
+F2
+S1
+S2 S3
+H1
+H2
+H3
+R4
+H6
+H5
+H4S4
+S5 S6
+S7
+Flag 2 Flag 2
+Flag 1 Flag 1
+Optimal Path of Attacker 1
+Optimal Path of Attacker 2
+H: Host Computer
+S: Server
+R: Router
+F: Firewall
+Fig. 9. Multi-attacker scenarios in a network. Left: Attackers 1 and 2 share
+the same set of exploits but aim for different targets. Both attackers follow
+their respective optimal paths to achieve their goals. Right: Attacker 1 and
+Attacker 2 use different sets of exploits and have different targets. This results
+in divergent optimal paths tailored to their attack capabilities and objectives.
+Blue Teaming: RL defenders counter threats by learn-
+ing adaptive strategies that dynamically respond to evolving
+attacks. A. Uprety et al. [12] highlight the ability of RL to
+secure dynamic IoT environments where real-time adaptation
+is critical to defend against emerging threats. H. Alavizadeh
+et al. [64] demonstrate the high accuracy of deep Q-learning
+in intrusion detection by using autonomous learning to refine
+defenses against various attacks . S. Jajodia et al. [15] show
+how RL can be combined with game theory and moving
+target defenses (MTD) to disrupt attackers by dynamically
+changing system configurations. These advances make RL
+a powerful tool for autonomous and scalable cybersecurity
+defense. Additionally, T. Kunz et al. [17] emphasize that Multi-
+Agent Reinforcement Learning (MARL) can significantly en-
+hance blue team effectiveness by training agents in adversarial
+scenarios, enabling them to counter sophisticated attackers
+through joint and iterative learning processes, as illustrated
+in Fig. 10.
+.
+.
+.
+RL Environment
+Fig. 10. A swarm of n Attack-Agents collaborates to infiltrate a computer
+network. The attackers exploit vulnerabilities in the network. This scenario
+shows a single Defender-Agent, which monitors the entire network, receives
+global state information and acts to secure the system by preventing or
+mitigating intrusions.
+C. Lateral Movement Simulation
+In sophisticated, targeted attacks, such as those found in
+Advanced Persistent Threats (APT), an attacker attempts to
+move laterally through a computer network to extend their
+attack to an entire network and ultimately gain control or
+access to a specific system [67]. This process, which is
+visualized in Fig. 11, usually involves exploiting network
+vulnerabilities, obtaining additional credentials, and exploiting
+system connections to extend their reach [68]. The most
+important techniques to move laterally through a network
+include credential dumping and reuse, where attackers extract
+and use compromised credentials to access connected systems
+[69]; remote vulnerability exploitation, where vulnerabilities
+in services such as SMB or HTTP are exploited to penetrate
+deeper into the network [70]; and privilege escalation, where
+local vulnerabilities are exploited to gain higher level access
+and control [71]. Understanding lateral movement and the in-
+terplay between attackers and defenders is essential for devel-
+oping efficient defense strategies [72]. Simulation- and training
+environments such as CyberBattleSim [52] or NASimEmu [53]
+provide a controlled environment in which these tactics can be
+studied. These environments allow researchers to effectively
+develop and test optimal strategies to counter such threats.
+Public
+MachineInternet
+Compromissed
+Machine
+Neighbor
+Machine
+Target
+Reached
+Capture
+Target
+Yes
+No
+Initial access:
+Exploit public-
+facing application
+Lateral movement:
+Exploitation of
+remote services
+Lateral movement:
+Exploitation of
+remote services
+Fig. 11. Attack graph starting from the Internet. The attacker exploits a public-
+facing application to compromise a public machine. Afterwards, the attacker
+exploits remote services through lateral movement to neighboring machines.
+This process continues until the target machine is reached.
+
+--- PAGE 9 ---
+VI. C ONCLUSION
+MARL offers a transformative approach to automating cyber
+defense by providing adaptive, decentralized, and scalable
+strategies to counter increasingly sophisticated and dynamic
+threats. By coordinating agents, MARL offers the technology
+to create sophisticated AICA and has the potential to sig-
+nificantly improve cybersecurity mechanisms and streamline
+processes such as penetration testing.
+However, despite remarkable progress in the development of
+MARL algorithms and training methods, practical applications
+of MARL in cybersecurity still need improvement. Challenges
+such as managing high-dimensional state and action spaces,
+ensuring robustness against adversarial attacks, and overcom-
+ing deployment gaps between simulations and real-world envi-
+ronments limit MARL’s current deployment in cybersecurity.
+Resolving these issues is critical for MARL to be a valuable
+tool for advanced cyber defense in practice.
+Future research must focus on developing sophisticated
+simulation and emulation environments, which enable agents
+to be trained as realistically as possible, further closing the
+gap between simulation and practice. In addition, integrating
+agents with generative models such as Generative Adversarial
+Networks (GANs) could improve scenario diversity and thus
+enable more effective strategies against complex threats.
+By addressing these limitations, MARL can emerge as a
+critical asset in modern cybersecurity, strengthening distributed
+systems and networks against increasingly sophisticated and
+adversarial threats. These advances align with broader efforts
+to develop intelligent, adaptive cyber defense systems, which
+are becoming increasingly essential in adversarial environ-
+ments, including military and defense domains.
+REFERENCES
+[1] R. Muggah and M. Margolis. (2023, Jan.) Why we need global rules to
+crack down on cybercrime. Accessed: 2024-11-19. [Online]. Available:
+https://www.weforum.org/stories/2023/01/global-rules-crack-down-cyb
+ercrime/
+[2] Cyber Insight, “Dynamic vs. static cybersecurity: Which approach is
+more effective?” https://cyberinsight.co/what-is-the-difference-between
+-dynamic-and-static-cybersecurity/, 2023, updated on: June 17, 2023.
+Accessed: 2024-12-11.
+[3] T. Kenyon, “Does traditional security protect against modern threats?”
+https://cybermagazine.com/cyber-security/does-traditional-security-p
+rotect-against-modern-threats, 2021, published on December 2, 2021.
+Accessed: 2024-12-11.
+[4] O. Vareilhes, “As the threat landscape changes, traditional cybersecurity
+approaches need to evolve,” 2024, published on August 12, 2024.
+Accessed: 2024-12-11. [Online]. Available: https://kudelskisecurity.c
+om/modern-ciso-blog/as-the-threat-landscape-changes-traditional-cyb
+ersecurity-approaches-need-to-evolve/
+[5] DARPA, “Cyber grand challenge,” 2016, available at: https://www.darp
+a.mil/about-us/timeline/cyber-grand-challenge.
+[6] T. Avgerinos, D. Brumley, J. Davis, R. Goulden, T. Nighswander,
+A. Rebert, and N. Williamson, “The mayhem cyber reasoning system,”
+IEEE Security & Privacy , vol. 16, no. 2, pp. 52–60, 2018.
+[7] A. Nguyen-Tuong, D. Melski, J. W. Davidson, M. Co, W. Hawkins, J. D.
+Hiser, D. Morris, D. Nguyen, and E. Rizzi, “Xandra: An autonomous
+cyber battle system for the cyber grand challenge,” IEEE Security &
+Privacy, vol. 16, no. 2, pp. 42–51, 2018.
+[8] Y . Shoshitaishvili, A. Bianchi, K. Borgolte, A. Cama, J. Corbetta,
+F. Disperati, A. Dutcher, J. Grosen, P. Grosen, A. Machiry, C. Salls,
+N. Stephens, R. Wang, and G. Vigna, “Mechanical phish: Resilient
+autonomous hacking,” IEEE Security & Privacy , vol. 16, no. 2, 2018.
+[9] D. Brumley, “The future of Cyber-Autonomy,” in Enigma 2018
+(Enigma 2018) . Santa Clara, CA: USENIX Association, Jan. 2018.
+[Online]. Available: https://www.usenix.org/node/208122
+[10] Federal Office for Information Security, “Orientation guide for the
+security of critical infrastructures,” Bonn, Germany, Sep. 2022,
+accessed: 2023-12-11. [Online]. Available: https://www.bsi.bund.de/Sh
+aredDocs/Downloads/EN/BSI/KRITIS/oh sza en.pdf
+[11] M. Boehme, C. Cadar, and A. ROYCHOUDHURY , “Fuzzing: Chal-
+lenges and reflections,” IEEE Software, vol. 38, no. 3, pp. 79–86, 2021.
+[12] A. Uprety and D. B. Rawat, “Reinforcement learning for iot
+security: A comprehensive survey,” IEEE Internet of Things Journal ,
+vol. 8, no. 11, p. 8693–8706, Jun. 2021. [Online]. Available:
+http://dx.doi.org/10.1109/JIOT.2020.3040957
+[13] A. M. K. Adawadkar and N. Kulkarni, “Cyber-security and
+reinforcement learning — a brief survey,” Engineering Applications of
+Artificial Intelligence, vol. 114, p. 105116, 2022. [Online]. Available:
+https://www.sciencedirect.com/science/article/pii/S0952197622002512
+[14] Y . Guo, “A review of machine learning-based zero-day attack detection:
+Challenges and future directions,” Computer Communications, vol. 198,
+pp. 175–185, 2023. [Online]. Available: https://www.sciencedirect.com/
+science/article/pii/S0140366422004248
+[15] Z. Hu, P. Chen, M. Zhu, and P. Liu, Reinforcement Learning
+for Adaptive Cyber Defense Against Zero-Day Attacks . Cham:
+Springer International Publishing, 2019, pp. 54–93. [Online]. Available:
+https://doi.org/10.1007/978-3-030-30719-6 4
+[16] E. Cengiz and M. G ¨ok, “Reinforcement learning applications in cyber
+security: A review,” Sakarya University Journal of Science , vol. 27, 02
+2023.
+[17] T. Kunz, C. Fisher, J. L. Novara-Gsell, C. Nguyen, and L. Li,
+“A multiagent cyberbattlesim for rl cyber operation agents,” 2023.
+[Online]. Available: https://arxiv.org/abs/2304.11052
+[18] S. Vyas, J. Hannay, A. Bolton, and P. P. Burnap, “Automated cyber
+defence: A review,” 2023. [Online]. Available: https://arxiv.org/abs/23
+03.04926
+[19] G. Palmer, C. Parry, D. J. B. Harrold, and C. Willis, “Deep
+reinforcement learning for autonomous cyber defence: A survey,” 2024.
+[Online]. Available: https://arxiv.org/abs/2310.07745
+[20] S. Oesch, P. Austria, A. Chaulagain, B. Weber, C. Watson, M. Dixson,
+and A. Sadovnik, “The path to autonomous cyber defense,” 2024.
+[Online]. Available: https://arxiv.org/abs/2404.10788
+[21] A. Kott, P. Th ´eron, M. Dra ˇsar, E. Dushku, B. LeBlanc, P. Losiewicz,
+A. Guarino, L. Mancini, A. Panico, M. Pihelgas, K. Rzadca,
+and F. D. Gaspari, “Autonomous intelligent cyber-defense agent
+(aica) reference architecture. release 2.0,” 2023. [Online]. Available:
+https://arxiv.org/abs/1803.10664
+[22] S. Gronauer and K. Diepold, “Multi-agent deep reinforcement learning:
+a survey,” Artificial Intelligence Review, vol. 55, no. 2, 2022.
+[23] D. Huh and P. Mohapatra, “Multi-agent reinforcement learning: A
+comprehensive survey,” 2024. [Online]. Available: https://arxiv.org/abs/
+2312.10256
+[24] S. V . Albrecht, F. Christianos, and L. Sch¨afer, Multi-Agent Reinforcement
+Learning: Foundations and Modern Approaches . MIT Press, 2024.
+[Online]. Available: https://www.marl-book.com
+[25] S. Finistrella, S. Mariani, and F. Zambonelli, “Multi-agent reinforcement
+learning for cybersecurity: Approaches and challenges,” 2024.
+[26] M. Liu, L. Ma, C. Li, W. Chang, Y . Wang, J. Cui, and Y . Ji, “Design
+and analysis of decentralized interactive cyber defense approach based
+on multi-agent coordination,” in 2020 16th International Conference on
+Mobility, Sensing and Networking (MSN) , 2020, pp. 659–664.
+[27] D. Abel, “A theory of abstraction in reinforcement learning,” 2022.
+[Online]. Available: https://arxiv.org/abs/2203.00397
+[28] D. Abel, D. E. Hershkowitz, and M. L. Littman, “Near optimal
+behavior via approximate state abstraction,” 2017. [Online]. Available:
+https://arxiv.org/abs/1701.04113
+[29] D. Abel, D. Arumugam, K. Asadi, Y . Jinnai, M. L. Littman, and L. L.
+Wong, “State abstraction as compression in apprenticeship learning,” in
+Proceedings of the AAAI Conference on Artificial Intelligence , vol. 33,
+no. 01, 2019, pp. 3134–3142.
+[30] J. F. Nash, “Non-cooperative games,” in The Foundations of Price
+Theory Vol 4. Routledge, 2024, pp. 329–340.
+[31] P. Sunehag, G. Lever, A. Gruslys, W. M. Czarnecki, V . Zambaldi,
+M. Jaderberg, M. Lanctot, N. Sonnerat, J. Z. Leibo, K. Tuyls, and
+T. Graepel, “Value-decomposition networks for cooperative multi-agent
+learning,” 2017. [Online]. Available: https://arxiv.org/abs/1706.05296
+
+--- PAGE 10 ---
+[32] D. Abel, D. Arumugam, L. Lehnert, and M. Littman, “State abstractions
+for lifelong reinforcement learning,” in International Conference on
+Machine Learning. PMLR, 2018, pp. 10–19.
+[33] D. Abel, N. Umbanhowar, K. Khetarpal, D. Arumugam, D. Precup, and
+M. Littman, “Value preserving state-action abstractions,” inInternational
+Conference on Artificial Intelligence and Statistics . PMLR, 2020.
+[34] R. S. Sutton and A. G. Barto, “Reinforcement learning: An introduction,”
+IEEE Transactions on Neural Networks , vol. 16, pp. 285–286, 2005.
+[Online]. Available: https://api.semanticscholar.org/CorpusID:60035920
+[35] Y . Shoham and K. Leyton-Brown, Multiagent systems: Algorithmic,
+game-theoretic, and logical foundations. Cambridge Univ. Press, 2008.
+[36] T. Alpcan and T. Basar, “A game theoretic approach to decision and
+analysis in network intrusion detection,” in 42nd IEEE International
+Conference on Decision and Control, vol. 3, 2003, pp. 2595–2600 V ol.3.
+[37] C. Kiekintveld, M. Jain, J. Tsai, J. Pita, F. Ord ´o˜nez, and M. Tambe,
+“Computing optimal randomized resource allocations for massive se-
+curity games,” in Proceedings of The 8th International Conference on
+Autonomous Agents and Multiagent Systems - Volume 1 , 2009.
+[38] K. Hausken, J. W. Welburn, and J. Zhuang, “A review of
+attacker–defender games and cyber security,” Games, vol. 15, no. 4,
+2024. [Online]. Available: https://www.mdpi.com/2073-4336/15/4/28
+[39] S. R. Etesami and T. Bas ¸ar, “Dynamic games in cyber-physical security:
+An overview,”Dynamic Games and Applications, vol. 9, 2019. [Online].
+Available: https://api.semanticscholar.org/CorpusID:127700312
+[40] E. Miehling, M. Rasouli, and D. Teneketzis, “A pomdp approach to the
+dynamic defense of large-scale cyber networks,” IEEE Transactions on
+Information Forensics and Security , vol. 13, no. 10, 2018.
+[41] L. Yu and R. R. Brooks, Stochastic Tools for Network Intrusion
+Detection. Springer International Publishing, 2018, p. 197–205.
+[Online]. Available: http://dx.doi.org/10.1007/978-3-319-75683-7 15
+[42] A. Tampuu, T. Matiisen, D. Kodelja, I. Kuzovkin, K. Korjus,
+J. Aru, J. Aru, and R. Vicente, “Multiagent cooperation and
+competition with deep reinforcement learning,” 2015. [Online].
+Available: https://arxiv.org/abs/1511.08779
+[43] J. K. Terry, B. Black, N. Grammel, M. Jayakumar, A. Hari, R. Sullivan,
+L. Santos, R. Perez, C. Horsch, C. Dieffendahl, N. L. Williams,
+Y . Lokesh, and P. Ravi, “Pettingzoo: Gym for multi-agent reinforcement
+learning,” 2021. [Online]. Available: https://arxiv.org/abs/2009.14471
+[44] R. Lowe, Y . Wu, A. Tamar, J. Harb, P. Abbeel, and I. Mordatch, “Multi-
+agent actor-critic for mixed cooperative-competitive environments,”
+2020. [Online]. Available: https://arxiv.org/abs/1706.02275
+[45] M. L. Littman, “Markov games as a framework for multi-
+agent reinforcement learning,” in Machine Learning Proceedings
+1994, W. W. Cohen and H. Hirsh, Eds. San Francisco (CA):
+Morgan Kaufmann, 1994, pp. 157–163. [Online]. Available: https:
+//www.sciencedirect.com/science/article/pii/B9781558603356500271
+[46] J. Foerster, G. Farquhar, T. Afouras, N. Nardelli, and S. Whiteson,
+“Counterfactual multi-agent policy gradients,” 2017. [Online]. Available:
+https://arxiv.org/abs/1705.08926
+[47] T. Rashid, M. Samvelyan, C. S. de Witt, G. Farquhar, J. Foerster,
+and S. Whiteson, “Qmix: Monotonic value function factorisation for
+deep multi-agent reinforcement learning,” 2018. [Online]. Available:
+https://arxiv.org/abs/1803.11485
+[48] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov,
+“Proximal policy optimization algorithms,” 2017. [Online]. Available:
+https://arxiv.org/abs/1707.06347
+[49] C. S. de Witt, T. Gupta, D. Makoviichuk, V . Makoviychuk, P. H. S.
+Torr, M. Sun, and S. Whiteson, “Is independent learning all you
+need in the starcraft multi-agent challenge?” 2020. [Online]. Available:
+https://arxiv.org/abs/2011.09533
+[50] C. Yu, A. Velu, E. Vinitsky, J. Gao, Y . Wang, A. Bayen, and Y . Wu,
+“The surprising effectiveness of ppo in cooperative, multi-agent games,”
+2022. [Online]. Available: https://arxiv.org/abs/2103.01955
+[51] D. Silver, G. Lever, N. Heess, T. Degris, D. Wierstra, and M. Riedmiller,
+“Deterministic policy gradient algorithms,” in Proceedings of the 31st
+International Conference on Machine Learning , ser. Proceedings of
+Machine Learning Research, E. P. Xing and T. Jebara, Eds., vol. 32,
+no. 1. Bejing, China: PMLR, 22–24 Jun 2014, pp. 387–395. [Online].
+Available: https://proceedings.mlr.press/v32/silver14.html
+[52] W. B. Christian Seifert, Michael Betser, “Cyberbattlesim,” https://gith
+ub.com/microsoft/cyberbattlesim, 2021.
+[53] J. Janisch, T. Pevn ´y, and V . Lis´y, “Nasimemu: Network attack simulator
+& emulator for training agents generalizing to novel scenarios,” 2023.
+[Online]. Available: https://arxiv.org/abs/2305.17246
+[54] S. Hu, Y . Zhong, M. Gao, W. Wang, H. Dong, X. Liang,
+Z. Li, X. Chang, and Y . Yang, “Marllib: A scalable and efficient
+multi-agent reinforcement learning library,” 2023. [Online]. Available:
+https://arxiv.org/abs/2210.13708
+[55] M. Samvelyan, T. Rashid, C. S. de Witt, G. Farquhar, N. Nardelli,
+T. G. J. Rudner, C.-M. Hung, P. H. S. Torr, J. Foerster, and
+S. Whiteson, “The starcraft multi-agent challenge,” 2019. [Online].
+Available: https://arxiv.org/abs/1902.04043
+[56] M. Lanctot, E. Lockhart, J.-B. Lespiau, V . Zambaldi, S. Upadhyay,
+J. P ´erolat, S. Srinivasan, F. Timbers, K. Tuyls, S. Omidshafiei,
+D. Hennes, D. Morrill, P. Muller, T. Ewalds, R. Faulkner, J. Kram ´ar,
+B. D. Vylder, B. Saeta, J. Bradbury, D. Ding, S. Borgeaud, M. Lai,
+J. Schrittwieser, T. Anthony, E. Hughes, I. Danihelka, and J. Ryan-
+Davis, “Openspiel: A framework for reinforcement learning in games,”
+2020. [Online]. Available: https://arxiv.org/abs/1908.09453
+[57] T. C. Eskridge, M. M. Carvalho, E. Stoner, T. Toggweiler, and
+A. Granados, “Vine: A cyber emulation environment for mtd
+experimentation,” in Proceedings of the Second ACM Workshop on
+Moving Target Defense , ser. MTD ’15. New York, NY , USA:
+Association for Computing Machinery, 2015, p. 43–47. [Online].
+Available: https://doi.org/10.1145/2808475.2808486
+[58] A. Wilson, R. Menzies, N. Morarji, D. Foster, M. C. Mont,
+E. Turkbeyler, and L. Gralewski, “Multi-agent reinforcement learning
+for maritime operational technology cyber security,” 2024. [Online].
+Available: https://arxiv.org/abs/2401.10149
+[59] H. Emerson, L. Bates, C. Hicks, and V . Mavroudis, “Cyborg++: An
+enhanced gym for the development of autonomous cyber agents,” 2024.
+[Online]. Available: https://arxiv.org/abs/2410.16324
+[60] C. Baillie, M. Standen, J. Schwartz, M. Docking, D. Bowman, and
+J. Kim, “Cyborg: An autonomous cyber operations research gym,”
+2020. [Online]. Available: https://arxiv.org/abs/2002.10667
+[61] M. Kiely, M. Ahiskali, E. Borde, B. Bowman, D. Bowman, D. van
+Bruggen, K. Cowan, P. Dasgupta, E. Devendorf, B. Edwards et al. ,
+“Exploring the efficacy of multi-agent reinforcement learning for au-
+tonomous cyber defence: A cage challenge 4 perspective,” in Proceed-
+ings of the AAAI Conference on Artificial Intelligence , vol. 39, no. 28,
+2025, pp. 28 907–28 913.
+[62] R. Meier, A. Lavrenovs, K. Hein ¨aaro, L. Gambazzi, and V . Lenders,
+“Towards an ai-powered player in cyber defence exercises,” in 2021
+13th International Conference on Cyber Conflict (CyCon) , 2021.
+[63] W. Yang, A. Acuto, Y . Zhou, and D. Wojtczak, “A survey for
+deep reinforcement learning based network intrusion detection,” 2024.
+[Online]. Available: https://arxiv.org/abs/2410.07612
+[64] H. Alavizadeh, J. Jang-Jaccard, and H. Alavizadeh, “Deep q-learning
+based reinforcement learning approach for network intrusion detection,”
+2021. [Online]. Available: https://arxiv.org/abs/2111.13978
+[65] J. A. F. Carrasco, I. A. Pagola, R. O. Urrutia, and R. Rom ´an, “Cy-
+bershield: A competitive simulation environment for training ai in
+cybersecurity,” in 2024 11th International Conference on Internet of
+Things: Systems, Management and Security (IOTSMS) , 2024, pp. 11–
+18.
+[66] K. Hammar, “Csle: Cyber security learning environment,” 2024, gitHub
+repository. [Online]. Available: https://github.com/Limmen/csle
+[67] Y . Wang, H. Liu, Z. Li, Z. Su, and J. Li, “Combating advanced
+persistent threats: Challenges and solutions,” IEEE Network , vol. 38,
+no. 6, p. 324–333, Nov. 2024. [Online]. Available: http://dx.doi.org/10.
+1109/MNET.2024.3389734
+[68] MITRE ATT&CK, “Lateral movement (ta0008),” https://attack.mitre.o
+rg/tactics/TA0008/, 2019, accessed: 2024-12-11.
+[69] E. Williams, T. SpiderLabs, T. (Wadhwa-)Brown, V . L. Toux, and
+Y . Yonan, “Os credential dumping (t1003),” https://attack.mitre.org
+/techniques/T1003/, 2024, tactic: Credential Access; Platforms: Linux,
+Windows, macOS; Version: 2.2; Created: 31 May 2017, Last Modified:
+15 October 2024; Accessed: 2024-12-11.
+[70] ExtraHop, “Exploitation of remote services (t1210),” https://attack.mit
+re.org/techniques/T1210/, 2022, tactic: Lateral Movement; Version: 1.1;
+Created: 18 April 2018, Last Modified: 24 February 2022; Accessed:
+2024-12-11.
+[71] MITRE ATT&CK, “Privilege escalation (ta0004),” https://attack.mitre.o
+rg/tactics/TA0004/, 2021, created: 17 October 2018, Last Modified: 06
+January 2021; Accessed: 2024-12-11.
+[72] L. Huang and Q. Zhu, “Farsighted risk mitigation of lateral movement
+using dynamic cognitive honeypots,” 2020. [Online]. Available:
+https://arxiv.org/abs/2007.13981

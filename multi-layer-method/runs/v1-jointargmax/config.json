@@ -1,0 +1,10 @@
+{
+  "steps": 100000,
+  "seed": 0,
+  "opponent": "meander",
+  "horizon": 50,
+  "eval_episodes": 10,
+  "device": "cpu",
+  "output": "multi-layer-method\\runs\\v1-jointargmax",
+  "load": "multi-layer-method\\runs\\v1\\model.zip"
+}

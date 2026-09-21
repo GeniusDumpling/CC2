@@ -1,0 +1,17 @@
+[
+  {
+    "name": "cage-challenge-2",
+    "url": "https://github.com/cage-challenge/cage-challenge-2.git",
+    "commit": "26ce1c1253fa9e2e73f25e6a7f2da32860c11257"
+  },
+  {
+    "name": "CybORG_plus_plus",
+    "url": "https://github.com/alan-turing-institute/CybORG_plus_plus.git",
+    "commit": "c343476cb4490ba3e850561e0d11e7036ce50822"
+  },
+  {
+    "name": "incident-response-rl-gnn",
+    "url": "https://github.com/kasanari/incident-response-rl-gnn.git",
+    "commit": "a5a3b3995eb3b57b01fa01edeb0bdc0539741072"
+  }
+]

@@ -1,0 +1,2478 @@
+
+--- PAGE 1 ---
+1
+Optimal Defender Strategies for CAGE-2
+using Causal Modeling and Tree Search
+Kim Hammar †, Neil Dhir ‡, and Rolf Stadler †
+† KTH Royal Institute of Technology, Sweden
+‡ Siemens Technology, USA
+Email: {kimham, stadler }@kth.se, neil.dhir@siemens.com
+October 23, 2024
+Abstract—The CAGE -2 challenge is considered a standard
+benchmark to compare methods for autonomous cyber defense.
+Current state-of-the-art methods evaluated against this bench-
+mark are based on model-free (offline) reinforcement learning,
+which does not provide provably optimal defender strategies. We
+address this limitation and present a formal (causal) model of
+CAGE -2 together with a method that produces a provably optimal
+defender strategy, which we call Causal Partially Observable
+Monte-Carlo Planning ( C-POMCP ). It has two key properties.
+First, it incorporates the causal structure of the target system,
+i.e., the causal relationships among the system variables. This
+structure allows for a significant reduction of the search space
+of defender strategies. Second, it is an online method that
+updates the defender strategy at each time step via tree search.
+Evaluations against the CAGE -2 benchmark show that C-POMCP
+achieves state-of-the-art performance with respect to effectiveness
+and is two orders of magnitude more efficient in computing time
+than the closest competitor method.
+Index Terms —cybersecurity, network security, causal infer-
+ence, SCM, APT, CAGE -2, POMDP , intrusion response.
+I. I NTRODUCTION
+Domain experts have traditionally defined and updated an
+organization’s security strategy. Though this approach can
+offer basic security for an organization’s IT infrastructure, a
+growing concern is that infrastructure update cycles become
+shorter and attacks increase in sophistication. To address this
+challenge, significant research efforts to automate the process
+of obtaining effective security strategies have started [1]–[3]. A
+driving factor behind this research is the development of eval-
+uation benchmarks, which allow researchers to compare the
+performance of different methods. Presently, the most popular
+benchmark is the Cyber Autonomy Gym for Experimentation
+2 (CAGE -2) [4], which involves defending a networked system
+against an Advanced Persistent Threat ( APT), see Fig. 1.
+At the time of writing, more than 30 methods have been
+evaluated against CAGE -2 [4]. Detailed descriptions of some
+methods can be found in [5]–[21]. While good results have
+been obtained, key aspects remain unexplored. For example,
+current methods are narrowly focused on offline reinforcement
+DISTRIBUTION STATEMENT A (Approved for Public Release, Distribution
+Unlimited). This research is supported by the Defense Advanced Research
+Project Agency ( DARPA) through the CASTLE program under Contract No.
+W912CG23C0029. The views, opinions, and/or findings expressed are those
+of the authors and should not be interpreted as representing the official views
+or policies of the Department of Defense or the U.S. Government.
+ENTERPRISE ZONE
+(z = 2)
+OPERATIONAL ZONE
+(z = 3)
+USER ZONE(z = 1)
+Defender
+Attacker Clients
+2
+1
+3 2 3 4
+1
+1 2 3 4
+Fig. 1: The CAGE -2 scenario [4]: a defender aims to protect a networked
+system against an Advanced Persistent Threat ( APT) caused by an attacker
+while maintaining services for clients; the system configuration is listed in
+Appendix D.
+learning and require a lengthy training phase to obtain effec-
+tive strategies. Further, these methods are model-free and do
+not provide provably optimal strategies. In addition, current
+methods provide limited ways to include domain expertise in
+the learning process, though attempts have been made with
+reward shaping [7].
+In this paper, we address the above limitations and use
+the CAGE -2 scenario to illustrate and evaluate our solution
+method. First, we develop a formal (causal) model of CAGE -
+2, which allows us to define and prove the existence of an
+optimal defender strategy. This model is based on the source
+code of CAGE -2 and is formalized as a Structural Causal
+Model ( SCM) [22, Def 7.1.1]. We prove that this SCM is
+equivalent to a specific Partially Observed Markov Decision
+Process ( POMDP ) [23, P.1]. Compared to the POMDP , our
+SCM offers a more expressive representation of the underlying
+causal structure, allowing us to understand the causal effects
+of defender strategies [22, Def. 3.2.1].
+Second, we design an online method that produces a prov-
+ably optimal defender strategy, which we call Causal Partially
+Observable Monte-Carlo Planning ( C-POMCP ). The method
+has two key properties: (1) it incorporates causal information
+of the target system in the form of a causal graph [22, Def.
+2.2.1], which allows us to prune the search space of defender
+strategies; and (2) it is an online method that updates the
+defender strategy at each time step via tree search.
+Our causal model represents one of many ways of formally
+arXiv:2407.11070v2  [cs.LG]  22 Jul 2024
+
+--- PAGE 2 ---
+modeling CAGE -2. A key question is the level of abstraction at
+which CAGE -2 is modeled. The more detailed we construct the
+model, the closer it can capture the CAGE -2 implementation.
+However, this comes at the expense of higher computational
+complexity and lower generalization ability. When balancing
+this trade-off, we follow the principle that a model should
+be detailed enough so that a theoretically optimal defender
+strategy exhibits state-of-the-art performance in a practical
+implementation [4].
+We evaluate C-POMCP against the CAGE -2 benchmark and
+show that it achieves state-of-the-art effectiveness while being
+two orders of magnitude more computationally efficient than
+the closest competitor method: CARDIFF -PPO [5]. The evalu-
+ation results also show that C-POMCP performs significantly
+better than its non-causal version: POMCP [24, Alg. 1]. While
+prior work has focused on offline methods that require hours
+of training, C-POMCP produces equally effective defender
+strategies through less than 15 seconds of online search.
+Our contributions can be summarized as follows:
+• We present a causal model of the CAGE -2 scenario (M1).
+This model allows us to define and prove the existence
+of optimal defender strategies (Thm. 1).
+• We design C-POMCP , an online method that leverages the
+causal structure of the target system to efficiently find an
+optimal defender strategy (Alg. 1). C-POMCP includes a
+novel approach to leverage causal information for tree
+search, which may be of independent interest. The code
+is available at [25].
+• We prove that C-POMCP converges to an optimal strategy
+with increasing search time (Thm. 4).
+• We evaluate C-POMCP against the CAGE -2 benchmark.
+The results show that C-POMCP outperforms the current
+state-of-the-art methods in effectiveness and performs
+significantly better in computational efficiency [5].
+II. R ELATED WORK
+Autonomous cyber defense is an active area of research
+that uses concepts and methods from various fields (see Fig.
+2): reinforcement learning [3], [9], [11]–[13], [16]–[18], [20],
+[26]–[38], control theory [2], [39]–[46], causal inference [47]–
+[50], game theory [1], [51]–[61], rule-based systems [62]–
+[67], large language models [19], [21], [68], [69], evolutionary
+computation [70]–[75], and general optimization [76]–[80].
+Several of these works use the CAGE -2 benchmark [4] for
+evaluating their methods, see for example [5]–[13], [16]–[21].
+The best benchmark performance is achieved by those methods
+that are based on deep reinforcement learning, where the cur-
+rent state-of-the-art methods use Proximal Policy Optimization
+(PPO) [81, Alg. 1][5].
+To our knowledge, no prior work has provided a formal
+model of CAGE -2, nor considered tree search for finding
+effective defender strategies. Moreover, the only prior works
+that use causal inference are [47]–[50]. This paper differs from
+them in two ways. First, the studies presented in [48]–[50]
+use causality for analyzing the effects of attacks and coun-
+termeasures but do not present methods for finding defender
+strategies. Second, the method for finding defender strategies
+APT
+DDOS
+FAULT-TOLERANCE
+INTRUSION RESPONSE
+INTRUSION PREVENTION
+Causality
+Control theory
+Game theoryGeneralOptimization
+Reinforcement
+learning Rule-based
+Evolutionarycomputation
+Large languagemodels
+[70]
+[71]
+[75]
+[31]
+[68]
+[41][46]
+[26]
+[54]
+[32]
+[36]
+[42]
+[38]
+[33]
+[7]
+[8]
+[5]
+[12]
+[16]
+[18]
+[20]
+[11]
+[28]
+[27]
+[29]
+[51]
+[1]
+[60][61] [53]
+[55]
+[37]
+[2]
+[40]
+[43]
+[39][63]
+[82]
+[65]
+[76]
+[79]
+[80]
+[77]
+[69]
+[21]
+[19]
+[47]
+[48]
+[50]
+[45]
+[62][66]
+[67]
+[73]
+[74] [49]
+This
+paper
+Fig. 2: Related work on autonomous cyber defense; this paper addresses APT
+defense using causality, control theory, and reinforcement learning.
+in [47] uses Bayesian optimization and is myopic, i.e., it does
+not consider the future when selecting strategies. While this
+approach simplifies computations, the method is sub-optimal
+for most practical scenarios. By contrast, our method is non-
+myopic and produces optimal strategies (Thm. 4).
+III. T HE CAGE -2 S CENARIO
+The CAGE -2 scenario involves defending a networked sys-
+tem against APTs [4]. The operator of the system, which
+we call the defender, takes measures to protect it against
+an attacker while providing services to a client population
+(see Fig. 1). The system is segmented into zones with nodes
+(servers and workstations) that run network services. Services
+are realized by workflows that are accessed by clients through
+a gateway, which is also open to the attacker. The detailed
+system configuration can be found in Appendix D.
+The attacker aims to intrude on the system and disrupt
+service for clients. To achieve this goal, it can take five actions:
+scan the network to discover nodes; exploit a vulnerability to
+compromise a node; perform a brute force attack to obtain
+login credentials to a node; escalate privileges on a compro-
+mised node to gain root access; and disrupt the service on a
+compromised node.
+The defender monitors the system through log files and
+network statistics. It can make four types of interventions on
+a node to prevent, detect, and respond to attacks: analyze the
+node for a possible intrusion; start a decoy service on the
+node; remove malware from the node; and restore the node to
+a secure state, which temporarily disrupts its service. When
+deciding between these interventions, the defender balances
+two conflicting objectives: maximize service utility towards
+its clients and minimize the cost of attacks.
+IV. C AUSAL INFERENCE PRELIMINARIES
+This section covers notation and provides an overview of
+causal inference, which lays the foundation for the subsequent
+2
+
+--- PAGE 3 ---
+Notation(s) Description
+GS, GW System graph and workflow graph (§V-A)
+V, E, Z Set of nodes and edges inGS, set of zones (§V-A)
+Dt,It,St Decoy states, intrusion states, and service states (§V-A)
+U, K, S The unknown, known, and scanned intrusion states (Fig. 5)
+C, R The compromised and root intrusion states (Fig. 5)
+At, αt Attacker action and attacker action type (§V-B)
+Vt, Pt, Tt Vulnerability, privileges, and target of attacker action (§V-B)
+S, E, P Scan, exploit, and privilege escalation attacker actions (§V-B)
+I, D Impact and discover attacker actions (§V-B)
+fI, fS, fC Causal functions forIi,t (5), Si,t (6), andCt (8)
+Zi,t, Zt Observation of nodei and observations for all nodes (§V-C)
+fZ,i, Wi,t, Wt Causal function forZi,t (7), noise variable, noise variables
+Ct, At, Dt Number of clients, arrivals, and departures (8)
+bXt, bxt, T Intervention variables and values (§V-E), search operator (18)
+do(bXt = bxt) Intervention at timet (10)
+do(X⋆t =x⋆t) Optimal intervention at timet
+Rt, J Defender reward at timet and defender objective (9)
+fR, fJ, fD Causal functions ofRt, J (9), andDi,t
+U,V Exogeneous and endogenous variables (M1)
+Xt,Nt Manipulative, non-manipulative variables (§V-F)
+Ot,Lt, fA Observed and latent variables (§V-F), causal function ofAt (4)
+Yt, D Target variables (§V-F) at timet, set of decoys (Appendix D)
+M,F SCM and causal functions (M1)
+ot, T Observation (12) and time horizon (9)
+Ht,ht, γ History and its realization (11), discount factor
+πA, πD ∈ Π Attacker and defender strategies (§V-B and §V-E)
+π⋆
+D, R Optimal defender strategy (Thm. 1), cumulative regret (20)
+qt, ψzi, βzi Parameters in the defender objective (9)
+bbt,P⋆
+G Belief state (14), the set ofPOMISs (Def. 3)
+Σt, σ, G Markov state and its realization (Thm. 1), causal graph (Fig. 6)
+M, sT, c Number of particles, search time, exploration parameter (17)
+TABLE 1: Notation.
+section, where we deduce a causal model of the CAGE -2
+scenario.
+Notation. Random variables are denoted by upper-case letters
+(e.g., X), their values by lower-case letters (e.g., x), and their
+domains by dom(·). X ⊥ ⊥Y means that X and Y are indepen-
+dent. P is a probability measure. (Since we focus on countable
+sample spaces, the construction of the underlying probability
+space is standard.) The expectation of f with respect to X is
+written as EX[f], and x ∼ f means that x is sampled from
+f. (As the sample spaces are countable, no question of the
+existence of EX[f] will arise.) If f includes many random
+variables that depend on π, we simply write Eπ[f]. We use
+P (x) as a shorthand for P (X = x). Random vectors (or sets)
+and their values are written in bold upper-case and lower-
+case letters, respectively (e.g., X and x). A (column) vector is
+written as (x1, x2, . . .) and a 1-dimensional vector as (x1, ).
+1 is the indicator function. pa(X)G, ch(X)G, an(X)G and
+de(X)G denote parents, children, ancestors, and descendants
+of node X in a graph G. G[V] denotes the subgraph obtained
+by restricting G to the nodes in V. Further notation is listed
+in Table 1.
+A. Structural Causal Models
+A Structural Causal Model ( SCM) is defined as
+M ≜ ⟨U, V, F, P(U)⟩ , (1)
+where U is a set of exogenous random variables and V is a set
+of endogenous random variables [22, Def 7.1.1]. Within V∪U
+we distinguish between five subsets that may overlap: the set
+of manipulative variables X; non-manipulative N; observed
+O; latent L; and targets Y. ( SCMs with latent variables are
+called “partially observable” [83, Def. 1].)
+X Z Y
+U
+X Z Y
+a) b)
+Fig. 3: Causal graphs [22, Def. 2.2.1]; circles represent variables in an SCM
+(1); solid arrows represent causal relations, and dashed edges represent effects
+caused by latent variables; latent variables can either be represented with
+shaded circles or with bidirected dashed edges, i.e., the graphs in a) and b)
+represent the same causal structure.
+An SCM induces a causal graph G [22, Def. 2.2.1], where
+nodes correspond to V ∪ U and edges represent (causal)
+functions F ≜ {fi}Vi∈V. A function fi is a mapping from
+the domains of a subset K ⊆ (U ∪ pa(Vi)G) to the domain of
+Vi, which is represented graphically by directed edges from the
+nodes in K to Vi (see Fig. 3). If each function is independent
+of time, the SCM is said to be stationary.
+Causal graphs with latent variables can be drawn in two
+ways (cf. Fig. 3.a and Fig. 3.b). One option is to include the
+latent variables in the graph (Fig. 3.a). Another option is to
+represent the latent variables with bidirected edges, where a
+bidirected edge between two observed variables means that
+they share an unobserved confounder [22, Def. 6.2.1], i.e., a
+latent variable that influences both of them (Fig. 3.b).
+We say that P (V) is Markov relative to G if it admits the
+following factorization [22, Def. 1.2.2, Thm. 1.2.7]
+P (V) =
+|V|Y
+i=1
+P (Vi | pa(Vi)G). (2)
+Similarly, we say that an SCM is Markov if it induces a
+distribution over the observables O that satisfies (2) [22, Thm.
+1.4.1]. If the SCM is not Markov and G is acyclic, we say that
+it is semi-Markov [22, Ch. 3].
+B. Interventions and Causal Effect Identifiability
+The operator do(X = x) represents an atomic intervention
+that fixes a set of endogenous variable(s) X to constant
+value(s) x irrespective of the functions F [22, Def. 3.2.1].
+Similarly, do(X = π(O)) represents a conditional interven-
+tion, whereby the function(s) {fi}i∈X are replaced with a
+deterministic function π of the observables. We call such a
+function an intervention strategy.
+The standard way to estimate causal effects of interventions
+[22, Def. 3.2.1] is through controlled experiments [84]. In
+practice, however, experimentation can be costly and is often
+not feasible in operational systems. This leads to the funda-
+mental question of whether causal effects can be estimated
+only from observations. Such estimation can be performed
+using Pearl’s do-calculus, which is an axiomatic system for
+replacing expressions that contain the do-operator with condi-
+tional probabilities [22, Thm. 3.4.1].
+In case an SCM includes latent variables [22, Def. 2.3.2],
+the question of identifiability arises:
+Definition 1 (Causal effect identifiability [22, Def. 3.2.4]) .
+The causal effect [22, Def. 3.2.1] of do(X = π(O)) on Y is
+identifiable from G if P (Y | do(X = π(O)), O) is uniquely
+computable from P (O) > 0 in every SCM conforming to G.
+3
+
+--- PAGE 4 ---
+X Z J
+S
+W
+J
+X
+ZB
+b)P⋆G ={∅,{X},{W},{Z},{B, W},{X, W},{Z, W}}a)P⋆G ={{Z}}
+Fig. 4: Two causal graphs and the corresponding sets of POMIS s (Def. 3); J
+is the target variable, and all other variables are manipulative.
+Do-calculus is complete in that it allows to derive all
+identifiable causal effects [22, Cor. 3.4.2][85, Thm. 23].
+Consequently, one can prove identifiability by providing a
+do-calculus derivation that reduces the causal effect to an
+expression involving only P (O).
+C. Automatic Intervention Control
+The problem of finding a sequence of conditional interven-
+tions do(X1 = π(O)), . . . ,do(XT = π(O)) that maximizes
+a target variable J can be formulated as a feedback control
+problem [86], also known as a dynamic treatment regime
+problem [87]. We say that such a problem is identifiable if
+the effect on J caused by every intervention strategy π is
+identifiable:
+Definition 2 (Control problem identifiability [22, Ch. 4.4]) .
+A control problem with target J and time horizon T is identifi-
+able from G if P (J | do(X1 = π(O)), . . . ,do(XT = π(O)))
+is identifiable for each intervention strategy π (Def. 1).
+Given a control problem and a causal graph, we can derive
+possibly optimal minimal intervention sets (POMIS s):
+Definition 3 (POMIS , adapted from [88, Def. 3]) .
+Given a control problem with target J and a causal graph
+G, ˜X ⊆ X is a POMIS if, for each SCM conforming to G,
+there is no X′ ⊂ ˜X such that Eπ[J | do( ˜X = ˜x)] = Eπ[J |
+do(X′ = x′)] and there exists an SCM such that
+Eπ⋆[J | do( ˜X = ˜x)] ≥ Eπ⋆[J | do(X′ = x′)], (3)
+for all π, X′, and x′, where π⋆ is an optimal intervention
+strategy satisfying Eπ⋆[J] ≥ Eπ[J] ∀π.
+Let P⋆
+G denote the set of POMIS s for a causal graph G.
+P⋆
+G for two example graphs are shown in Fig. 4. As can
+be seen in Fig. 4.a, when G is Markovian, and all variables
+except the target are manipulative, the only POMIS is the set of
+parents of the target [88, Prop. 2]. When there are unobserved
+confounders [22, Def. 6.2.1], however, P⋆
+G generally includes
+many more sets, as shown in Fig. 4.b. An algorithm for
+computing P⋆
+G can be found in [88, Alg. 1].
+V. C AUSAL MODEL OF THE CAGE -2 S CENARIO
+We model the CAGE -2 scenario by constructing an SCM
+(1) and formulate the benchmark problem as the problem of
+finding an optimal intervention strategy for the defender.
+A. Target System (Fig. 1)
+We represent the physical topology of the target system as
+a directed graph GS ≜ ⟨V, E⟩, where nodes represent servers
+and workstations; edges represent network connectivity. Each
+node i ∈ V is (permanently) located in a zone zi ∈ Z and
+has three state variables: an intrusion state Ii,t, a service state
+Si,t, and a decoy state Di,t.
+Ii,t takes five values: U if the node is unknown to the
+attacker, K if it is known, S if it has been scanned, C if it is
+compromised, and R if the attacker has root access (see Fig.
+5). Similarly, Si,t takes two values: 1 if the service provided by
+node i is accessible for clients, 0 otherwise. Lastly, the decoy
+state Di,t is a vector (di,t,1, . . . , di,t,|D|), where di,t,j = 1 if
+decoy j is active on node i, 0 otherwise. The set of decoys in
+CAGE -2 is available in Appendix D and is denoted by D. The
+initial state of node i is (Ii,1 = U, Si,1 = 1, Di,1 = 0).
+A workflow graph GW captures service dependencies among
+nodes (see Appendix D). A directed edge i → j in GW means
+that the service provided by node i is used by node j.
+B. Attacker
+During each time step, the attacker performs an action At,
+which targets a single node or all nodes in a zone (in case of a
+scan action). The action is determined by an attacker strategy
+πA. It consists of four components At ≜ (αt, Vt, Pt, Tt): αt is
+the action type, Vt is the vulnerability, Pt ∈ {(U)ser, (R)oot}
+is the privileges obtained by exploiting the vulnerability, and
+Tt is the target, which can be either a single node i ∈ V or a
+zone z ∈ Z .
+There are five attack actions: (S)can, which scans the
+vulnerabilities of a node; (E)xploit, which attempts to exploit a
+vulnerability of a node; (P)rivilege escalation, which escalates
+privileges of a compromised node; (I)mpact, which stops
+the service on a compromised node; and (D)iscover, which
+discovers the nodes in a zone. These actions have the following
+causal effects on the intrusion state Ii,t and the service state
+Si,t [22, Def. 3.2.1].
+At−1 = fA(πA, {Ii,t−1}i∈V) (4)
+Ii,t = fI(Ii,t−1, At−1, Di,t, Et) ≜ (5)
+
+
+K if Tt−1 = zi, αt−1 = D
+K if Tt−1 ∈ pa(i)GW , αt−1 = P
+S if Tt−1 = i, αt−1 = S
+C if Tt−1 = i, αt−1 = E, Pt−1 = U, Di,Vt,t = 0, Et = 1
+R if Tt−1 = i, αt−1 = E, Pt−1 = R, Di,Vt,t = 0, Et = 1
+R if Tt−1 = i, αt−1 = P
+Ii,t−1 otherwise
+Si,t = fS(At−1, Si,t−1) ≜
+(
+0 if Tt−1 = i, αt−1 = I
+Si,t−1 otherwise,
+(6)
+where Et is a binary random variable and P (Et = 1) is the
+probability that an exploit at time t is successful (see Fig. 5).
+The first two cases in (5) capture the transition U → K,
+which occurs when the attacker discovers the zone of node i.
+4
+
+--- PAGE 5 ---
+U K S C R(D)iscover (S)can
+(E)xploit
+(P)rivilegeescalation(E)xploit
+Fig. 5: Transition diagram of the intrusion state Ii,t (5); self-transitions are
+not shown; disks represent states; arrows represent state transitions; labels
+indicate conditions for state transition; the initial state is Ii,1 = U.
+The third case defines the transition K → S, which happens
+when the attacker scans the node. The fourth case captures the
+transition S → C, which occurs when the attacker compromises
+the node. The fifth and sixth cases define the transitions S →
+R and C → R, which occur when the attacker obtains root
+privileges on the node. The final case captures the recurrent
+transition Ii,t = Ii,t−1. Lastly, (6) states that the ( I)mpact
+action disrupts the service.
+Remark 1. The dependence between (5) and GW is unintuitive
+but is warranted based on the source code of CAGE -2 [4].
+C. Observations and Clients
+The defender knows the decoy state Di,t and the service
+state Si,t, but can not observe the intrusion state Ii,t nor
+the attacker action At. Instead of Ii,t and At, the defender
+observes Zi,t, which represents network activity at node i.
+Like the intrusion state Ii,t (5), the activity Zi,t takes five
+values: (U)nknown, (K)nown, (S)canned, (C)ompromised, and
+(R)oot. The value of Zi,t is influenced both by attacker actions
+and by clients requesting service, which we express as
+Zi,t = fZ,i(Ct, At−1, Wi,t), (7)
+where Wi,t ∈ N is a noise variable and Ct represents the
+number of clients requesting service at time t, which is
+determined as
+Ct = fC(Ct−1, At, Dt) ≜ max [0, Ct−1 + At − Dt] , (8)
+where At and Dt are the number of clients that arrive and
+depart in the time interval [t − 1, t], respectively.
+D. Defender Objective
+The defender balances two objectives: maintain services to
+its clients and minimize the cost of intrusion. In CAGE -2, this
+bi-objective corresponds to maximizing
+J = fJ({Rt | 1 ≤ t ≤ T }) ≜
+TX
+t=1
+γt−1Rt (9)
+Rt = fR({Ii,t, Si,t}i∈V) ≜
+intervention & downtime costz }| {
+−qt +
+X
+i∈V
+ψzi(Si,t − 1)
+intrusion costz }| {
+−βzi,Ii,t ,
+where Rt is the reward at time t; qt ≥ 0 is the intervention
+cost; ψzi ≥ 0 is the cost of service disruption in zone zi;
+βIi,t,zi ≥ 0 is the cost of intrusion in zone zi; γ ∈ [0, 1] is a
+discount factor; and T is the time horizon. The configuration
+of qt, ψzi, and βIi,t,zi for the target infrastructure in CAGE -2
+(Fig. 1) can be found in Appendix C.
+Causal model of the CAGE -2 scenario (M1)
+SCM: M ≜ ⟨U, V, F, P(U)⟩. CAUSAL GRAPH : G (Fig. 6).
+TARGET SYSTEM :
+V, T set of nodes and time horizon; see Appendix D
+GS = ⟨V, E⟩ physical topology graph (Fig. 1)
+GW = ⟨VW ⊆ V , EW⟩ workflow graph; see Appendix D .
+RANDOM VARIABLES :
+U ≜ {Et, πA, At, Dt, Wi,t | i ∈ V , 2 ≤ t ≤ T }
+V ≜ {Ii,t, Zi,t, Si,t, Di,t, At>1, Ct, Rt, J | i ∈ V , 1 ≤ t ≤ T }
+X ≜ {Di,t, Zi,t, Ii,t | i ∈ V , 1 ≤ t ≤ T }
+N ≜ (V ∪ U) \ X
+O ≜ {Di,t, Si,t, Zi,t, Ct, | i ∈ V , 1 ≤ t ≤ T }
+L ≜ (V ∪ U) \ O
+Y ≜ {Rt, J | 1 ≤ t ≤ T } .
+INITIAL CONDITION : Ii,1 = Zi,1 = U, Si,1 = 1, Di,1 = 0, C1 = R1 = 0.
+CAUSAL FUNCTIONS : F ≜ {fI, fS, (fZ,i)i∈V , fC, fR, fJ, fA, fD}.
+OBSERVATIONAL DISTRIBUTIONS :
+P (U) = P (πA)
+TY
+t=2
+P (Et)P (At)P (Dt)P ((Wi,t)i∈V)
+P (Vt) =
+|Vt|Y
+i=1
+P (Vi,t | pa(Vi,t)G).
+INTERVENTIONS : do( bXt = πD(Ht)) (10).
+E. Defender Interventions
+During each time step, the defender performs an inter-
+vention that targets a single node. The defender can make
+four types of interventions: analyze the node for a possible
+intrusion, start a decoy service, remove malware, and restore
+the node to a secure state, which temporarily disrupts its
+service. We model these interventions as follows.
+do(Zi,t = Ii,t) analyze; (10a)
+do(Di,j,t = 1) decoy; (10b)
+do(Ii,t = S) if Ii,t−1 = C remove; (10c)
+do(Di,t = 0, Ii,t = S) if Ii,t−1 ∈ {C, R} restore; (10d)
+do(∅) none. (10e)
+Note that Di,t remains constant if no interventions occur, i.e.,
+Di,t = fD(Di,t−1) ≜ Di,t−1.
+When selecting interventions, the defender considers the
+history Ht, which we define as
+Ht ≜ (V1, do(bX1), O2, do(bX2), . . . ,do(bXt−1), Ot) (11)
+Ot ≜ {Di,t, Si,t, Zi,t, Ct | i ∈ V} , (12)
+where do(bXt) is a shorthand for do(bXt = bxt) and V1 is
+the set of endogeneous variables at time t (defined below).
+The intervention at time t can thus be expressed as do(bXt =
+πD(ht), where πD is a defender strategy.
+Remark 2. The fact that the defender remembers the history
+Ht (11) means that it has perfect recall [89, Def. 7].
+F . A Structural Causal Model of CAGE -2
+The variables and the causal functions (4)–(9) described
+above determine the SCM (1) defined in (M1). Notable proper-
+ties of (M1) are a) the causal graph is acyclic (see Fig. 6); b)
+5
+
+--- PAGE 6 ---
+Dt
+AtCtCt−1
+Zi,t Wi,t
+Di,tDi,t−1
+At−1πA Ii,t
+Et
+Si,t
+Si,t−1
+Rt Sj,t
+Ij,t
+Ij,tIj,t−1Ij,t−1
+Ij,t
+Zj,t
+Sj,t
+j ∈ V \ {i}
+j ∈ch(i)Gw
+j ∈pa(i)Gwj ∈ V
+j ∈ V \ {i}
+Latent
+Observed
+Fig. 6: Causal (summary) graph of (M1) for node i [90, Ch. 10]; plate notation
+is used to represent sets of variables [91].
+the model is stationary; c) the model is semi-Markov [22, Thm.
+1.4.1]; d) the exogeneous variables are jointly independent;
+and e) P (Vt) is Markov relative to G (2) [22, Thm. 1.2.7].
+The size of the causal graph G associated with (M1) grows
+linearly with the time horizon T and with the number of nodes
+in the target system |V|. A summary of G is shown in Fig. 6.
+G. The Defender Problem in CAGE -2
+Given (M1) and the defender objective (9), the problem for
+the defender can be stated as follows.
+Problem 1 (Optimal defender strategy in CAGE -2 (M1)) .
+maximize
+πD
+EπD [J | V1] (13a)
+subject to do(bXt = πD(ht)) ∀t (13b)
+πA ∼ P (πA) ∀t (13c)
+At ∼ P (At), Dt ∼ P (Dt) ∀t (13d)
+Et ∼ P (Et), Wi,t ∼ P (Wi,t) ∀t, i (13e)
+At = fA(πA, {Ii,t}i∈V) ∀t, i (13f)
+Di,t = fD(Di,t−1) ∀t, i (13g)
+Ii,t = fI(Ii,t−1, At−1, Di,t, Et) ∀t, i (13h)
+Zi,t = fZ,i(Ct, At−1, Wi,t) ∀t, i (13i)
+Ct = fC(Ct−1, At, Dt) ∀t (13j)
+Si,t = fS(At−1, Si,t−1) ∀t, i (13k)
+Rt = fR({Ii,t, Si,t}i∈V) ∀t (13l)
+J = fJ({Rt}t=1,...,T ), (13m)
+where (13b) defines the interventions; (13d)–(13e) capture
+the distribution of U; and (13f)–(13m) define F.
+We say that a defender strategy π⋆
+D is optimal if it solves
+Prob. 1. This problem is well-defined in the following sense.
+Theorem 1. Assuming Ct, A, V, qt, βIi,t,z, ψz, are finite, and
+T is finite or γ < 1, then there exists an optimal deterministic
+defender strategy π⋆
+D. If T = ∞, then there exists a π⋆
+D that
+is stationary.
+Proof. For notational convenience, let St ≜ {Si,t}i∈V, It ≜
+{Ii,t}i∈V, Dt ≜ {Di,t}i∈V, Wt ≜ {Wi,t}i∈V, and Zt ≜
+{Zi,t}i∈V. We break down the proof into the following steps.
+1) Σt ≜ (It, Dt, Ct, At−1, πA, St−1) is Markovian.
+PROOF :
+P (Σt+1 | Σ1, . . . ,Σt) = P (At | πA, It)P (At+1)P (Dt+1)×
+P (Ct+1 | At+1, Dt+1, Ct)P (Et+1)P (St+1 | St, At)×
+P (It+1 | It, At, Dt+1, Et+1) = P (Σt+1 | Σt).
+2) (Ot, Rt ⊥ ⊥ {Vt}t=1,...,t | Σt).
+PROOF :
+P (Ot, Rt | {Vt}t=1,...,t) = P (Zt | Ct, At−1, Wt)×
+P (Wt)P (St | St−1, At−1)P (Rt | It, St) = P (Ot, Rt | Σt).
+3) dom(Ot), dom(Σt), and Rt are finite.
+PROOF : Follows from the theorem assumptions.
+4) Each defender strategy πD induces a well-defined probabil-
+ity measure over the random sequence (Σt, Ot)t≥1.
+PROOF : 3) implies that the sample spaces of (Σt, Ot)
+and (Σt, Ot)t≥1 are measurable and countable, respectively.
+Further, the fact that G is acyclic implies that the interventional
+distributions induced by (do(bXt = bxt))t≥1 are well-defined
+[22, Ch. 3]. Consequently, the statement follows from the
+Ionescu-Tulcea extension theorem [92].
+5) P (Σt+1|Σt), P(Ot|Σt), and P (Rt|Σt) are stationary.
+PROOF : Follows by stationarity of (M1).
+Statements 1–5 imply that Prob. 1 defines a finite, stationary,
+and partially observed Markov decision process ( POMDP ) with
+bounded rewards. The theorem thus follows from standard
+results in Markov decision theory, see [93, Thm. 7.6.1].
+Theorem 1 states that an optimal defender strategy π⋆
+D
+exists. Finding such a strategy requires estimating the causal
+effect P (J | do(bX1 = πD(H1)), . . . ,do(bXT = πD(HT )))
+for different strategies πD [22, Def. 3.2.1]. A key question is
+thus whether the effect is identifiable, i.e., whether it can be
+estimated from the observables. The following theorem states
+that the answer is negative.
+Theorem 2. Problem 1 is not identifiable (Def. 2).
+Proof. To prove non-identifiability, it is sufficient to present
+two sets of causal functions F′, F′′ that induce identical
+distributions over the observables but have different causal
+effects (Def. 2) [22] [94, Lem. 1]. For simplicity, consider
+T = 2 and |V| = 1. In this case J = R (9). Let
+F′ ≜
+
+fR(S, I) ≜ 1 I=R, fI(A, E, D) = R,
+fS(S, A) = 1, fZ, fC, fJ, fA, fD
+	
+,
+where {fZ, fC, fJ, fA, fD} are defined arbitrarily. Now let F′′
+be equivalent to F′ except for fR(S, I) ≜ S. Clearly P (O) is
+the same with both F′ and F′′. However, P (J = 0 | do(I =
+S)) = 1 with F′ but P (J = S | do(I = S)) = 1 with F′′.
+Theorem 2 states that causal effects of defender interven-
+tions (10) can not be identified from observations. This state-
+ment is obvious in hindsight but has important ramifications.
+It implies that to evaluate a defender strategy πD, the defender
+6
+
+--- PAGE 7 ---
+particleprobability
+PARTICLE FILTER
+h1
+h′2 h′′2 h′′′2 . . . hn2
+h′3 h′′3 h′′3 h′′′3 h′′′′3 . . .
+do(bX1=bx1)
+o2
+CAUSAL PRUNING
+h1
+h′2 h′′2
+h′′′3 h′′′′3
+do(bXt=bxt)
+J rollout
+TREE SEARCH do(X⋆t =x⋆t)
+(18)
+approximate beliefbbt
+(15)
+intervention setsP⋆G
+(Def. 3)
+observationot (12)
+Fig. 7: Causal Partially Observed Monte-Carlo Planning ( C-POMCP , Alg. 1); the figure illustrates one time step during which ( i) a particle filter is used to
+compute an approximate belief state bbt (14); (ii) a causal graph [22, Def. 2.2.1] (see Fig. 6) is used to prune the search tree of possible histories hk (11) by
+only considering histories with interventions in POMIS s (see Def. 3); and ( iii) tree search is used to find an optimal intervention do(X⋆
+t = x⋆
+t ) (18).
+must either know (M1) or perform controlled experiments to
+measure the effects of the interventions prescribed by πD.
+While it is likely that the defender is aware of certain
+components of (M1), it is unrealistic that it knows the entire
+model. A more reasonable assumption is that the defender
+knows the causal graph G (Fig. 6), which does not capture
+all nuances of the causal mechanisms but provides structural
+information. Leveraging this structure, we next present a
+method for finding an optimal strategy π⋆
+D which only requires
+access to the causal graph and a simulator of (M1).
+Remark 3. Access to a simulator is assumed by virtually all
+existing methods for autonomous cyber defense [5]–[20].
+VI. C AUSAL PARTIALLY OBSERVABLE
+MONTE -C ARLO PLANNING (C-POMCP )
+In this section, we present C-POMCP , an online method for
+obtaining an optimal defender strategy π⋆
+D for Prob. 1. The
+method involves three consecutive actions that are performed
+at each time step t (see Fig. 7).
+The first action uses the observation ot and a particle filter
+to compute the defender’sbelief bbt in the form of a probability
+distribution over the latent variables L in (M1). The second
+action constructs a search tree of possible future histories hk
+(11), which is initialized with a root node that represents the
+current history ht. Each edge extends this history by either
+an observation or an intervention: if hk+1 is a child node of
+hk, then either hk+1 = (hk, ok+1) or hk+1 = (hk, do(bXk =
+bxk)). C-POMCP then prunes the tree by excluding histories
+that contain interventions that do not belong to a POMIS (Def.
+3). The third action uses the belief bbt and the pruned tree to
+perform Monte-Carlo tree search , which involves estimating
+the reward J (9) through simulations. Once the search has been
+completed, the intervention from the root node that leads to
+the highest value of J (9) is returned. The pseudocode of C-
+POMCP is listed in Alg. 1, and the main components of the
+method are described below.
+A. Particle Filtering to Estimate Latent Variables
+The particle filter is a method for state estimation in
+partially observed dynamical systems [95]. Since (M1) can
+be formulated as such a system (Thm. 1), we use the particle
+filter to estimate the values of the latent variables L in (M1),
+e.g., the intrusion state Ii,t (5).
+We define the defender’s belief state as
+bt(σt) ≜ P (Σt = σt | ht) (14)
+(Bayes)
+= ηP (ot | σt, ht−1)P (σt | do(bXt =bxt), ht−1)
+(Markov)
+= ηP (ot | σt)P (σt | do(bXt =bxt), ht−1)
+(Markov)
+= ηP (ot | σt)
+X
+σt−1
+P (σt | σt−1, do(bXt =bxt))bt−1(σt−1),
+where ht is the history (11), σt is a realization of Σt (see
+Thm. 1), and η is a normalizing constant. The sum in (14) is
+over all possible realizations of Σt−1.
+The computational complexity of (14) is O(|dom(Σ)|2),
+which grows quadratically with the size of the state space
+and exponentially with the number of state variables. For this
+reason, the particle filter approximates (14) by representing bt
+by a set of M sample states (particles) Pt = {bσ(1)
+t , . . . ,bσ(M)
+t }
+[96]. These particles are sampled recursively as
+P t ≜
+M[
+i=1
+n
+bσ(i)
+t ∼ P
+
+· | bσ(i)
+t−1, do(bXt−1 =bxt−1)
+o
+(15a)
+Pt ≜
+M[
+i=1
+
+bσ(i)
+t
+∝P(ot|bσ(i)
+t )
+∼ P t
+
+, (15b)
+where bσ(i)
+t−1 ∈ P t−1 and x
+∝φ
+∼ means that x is sampled with
+probability proportional to φ.
+(15a)–(15b) focus the particle set to regions of the state
+space with a high probability of generating the latest observa-
+tion ot [95]. This ensures that the belief state induced by the
+particles converges to (14) when M → ∞, as stated below.
+Theorem 3. Letbb(σt) = 1
+M
+PM
+i=1 1 σt=bσ(i)
+t
+, then
+lim
+M →∞
+bbt → bt almost surely ∀t.
+This is a standard result in particle filtering. The proof is
+given in Appendix A.
+B. Causal Pruning of the Search Tree
+We use the causal graph G (Fig. 6) to prune the search tree
+by excluding histories hk (11) that contain interventions that
+do not belong to a POMIS P⋆
+G (Def. 3). For example, when
+t = T − 1, then Zi,t (7) and J (9) are d-separated in G [22,
+Def. 1.2.3]. This means that the intervention do(Zi,t = Ii,t)
+(10a) has no causal effect on J and thus Zi,t ̸∈ P⋆
+G.
+By restricting the possible interventions at time t to the set
+of POMIS s P⋆
+G, the number of interventions in the search tree
+is reduced by a factor of
+TY
+t=1
+P
+˜X∈P⋆
+G
+|dom( ˜X)|
+P
+bX∈2Xt |dom(bX)|
+, (16)
+7
+
+--- PAGE 8 ---
+10 20 30 40 50 60 70 80 90 100
+50
+100
+0.99 0.975 0.95 0.925 0.9
+% reduction of the search tree size
+T
+Fig. 8: Reduction of the size of the search tree by pruning the intervention
+space |2Xt | to the set of POMIS s P⋆
+G (Def. 3); the x-axis indicates the tree
+depth T ; curves relate to the factor in (16).
+where Xt is the set of manipulative variables at time t (M1).
+Hence, even if only a small subset of interventions does not
+belong to an POMIS , a significant reduction in the search tree
+size can be expected (see Fig. 8). Unfortunately, computing
+P⋆
+G is generally intractable, as stated below.
+Proposition 1. Computing P⋆
+G (Def. 3) is PSPACE -hard.
+Proof. We prove the PSPACE -hardness by reduction to the
+problem of solving a POMDP , which is PSPACE -hard [97, Thm.
+6]. Let x be an instance of the problem of computing P⋆
+G (Def.
+3). Finding a solution to x involves checking (3) for each
+˜Xt ∈ P⋆
+G. This means that a solution to x allows constructing
+an optimal solution to Prob. 1. By Thm 1, such a solution also
+provides a solution to a POMDP .
+Given the impracticality of computing P⋆
+G (Prop. 1), we
+approximate P⋆
+G as follows. First, we reduce the causal graph
+to a subgraph G[Ut−1 ∪Ut ∪Vt−1 ∪Vt] [22, Def. 7.1.2]. We
+then remove all variables in the subgraph whose values are
+uniquely determined by bb (15). Subsequently, we add a node
+to the subgraph that represents the target J (9), whose causal
+parents [22, Def. 1.2.1] are determined using a base strategy
+bπ, which can be chosen freely. It can, for example, be based
+on heuristics or be designed by a domain expert. Finally, we
+compute a POMIS for the reduced graph using [88, Alg. 1].
+Remark 4. Since [88, Alg. 1] is sound and complete [88,
+Thm. 9], the approximation described above is exact when
+the base strategy bπ is optimal.
+When applying the above procedure to the CAGE -2 scenario,
+we identify the following types of defender interventions that
+are never included in a POMIS : ( i) interventions that start
+decoys that are already running; ( ii) defensive interventions
+on nodes that are not compromised according to bb (15); and
+(iii) forensic and deceptive interventions on nodes that are
+compromised according to bb (15).
+Remark 5. The pruning of the search tree based on the
+POMIS s (Def. 3) occurs during the construction of the tree.
+The complete search tree is generally too large to construct.
+C. Monte-Carlo Tree Search
+Given the particle filter (14) and the POMIS (Def. 3), C-
+POMCP searches for optimal interventions using the tree search
+algorithm described in [24, Alg. 1]. This algorithm constructs a
+search tree iteratively by repeating five steps (see Fig. 9): ( i) it
+selects a path from the root to a leaf node using the tree policy
+described below; (ii) it expands the tree by adding children to
+the leaf, each of which corresponds to an intervention (10) on
+a POMIS (Def. 3); ( iii) it executes a rollout simulation from
+the leaf; ( iv) it adds a child to the leaf that corresponds to the
+first observation (12) in the simulation; and ( v) it records the
+value of J (9) and backpropagates the value up the tree.
+Tree policy. A node at depth k of the tree is associated
+with a history hk (11) and stores two variables: the average
+cumulative reward bJ(hk) (9) of simulations on the subtree
+emanating from the node, and the visit count N(hk) ≥ 1,
+which is incremented whenever the node is visited during the
+search. Using these variables, we implement the tree policy
+by selecting nodes that maximize the upper confidence bound
+bJ(hk) + c
+s
+ln N(hk−1)
+N(hk) , (17)
+where c > 0 controls the exploration-exploitation trade-off.
+Rollout. The initial state of a rollout simulation is sampled
+from the belief state bbk (15), and the intervention at each
+time step is selected using the base strategy bπ (§VI-B). The
+simulation executes for a depth of δR, after which the reward
+for the remainder of the simulation is estimated using a base
+value function Jbπ. Like the base strategy, this function can be
+chosen freely. It can, for example, be obtained through offline
+reinforcement learning. After the simulation has completed,
+the discounted sum of the rewards R1, Rt, . . . RδR (9) and Jbπ
+is used to update bJ(hk).
+Convergence. The process of running simulations and extend-
+ing the search tree continues for a search time sT, after which
+the intervention that leads to the maximal value of J (9) is
+returned, i.e.,
+do( ˜Xt = ˜xt) ∈ arg max
+do( bXt=bxt)
+bJ((ht, do(bXt =bxt))).
+We can express this search procedure as
+do( ˜Xt = ˜xt) ← T (ht,bbt,bπ, sT, S , G, P⋆
+G), (18)
+where T is a tree search operator.
+Theorem 4. Under the assumptions made in Thm. 1 and
+further assuming that the POMIS computation is exact (§VI-B),
+M → ∞, sT → ∞, T < ∞, and c is chosen such that
+P
+ 
+bJ(hk) ≤ E[bJ(hk)] ± c
+s
+ln N(hk−1)
+N(hk)
+!
+≤ k−4 (19)
+for all k ≥ 1. Then the intervention prescribed by C-
+POMCP (18) for any ht converges in probability to an optimal
+intervention do(X⋆
+t = x⋆
+t ).
+The proof of Thm. 4 relies on mapping an execution of
+C-POMCP to an execution of the UCT algorithm [98, Fig. 1],
+which is known to converge as sT → ∞ [98, Thm. 7]. We
+provide the proof in Appendix B. Note that (19) can always
+be satisfied by choosing a large c.
+Remark 6. Theorem 4 is not confined to CAGE -2 (M1).
+Rather, the theorem is general and applies to any control
+8
+
+--- PAGE 9 ---
+J
+SELECTION EXPANSION SIMULATIONBACKPROPAGATION
+Choose a path
+from the root to
+a leaf using (17)Add new leafs
+do(bX=bx)
+RolloutBackpropagate the
+value ofJ (9)
+o
+Fig. 9: Tree search in C-POMCP ; a search tree is constructed iteratively where
+each iteration consists of the four phases above.
+problem based on an SCM with interventions that can be
+formulated as a finite and stationary POMDP (Thm. 1).
+Algorithm 1: C-POMCP .
+1 Input: Simulator S of (M1), causal graph G (Fig. 6),
+2 search time sT, horizon T , number of particles M.
+3 Output: Interventions do( ˜X1 = ˜x1), . . . ,do( ˜XT = ˜xT ).
+4 Algorithm
+5 h1 = (V1, ).
+6 for t = 1, 2, . . . ,T do
+7 Compute bbt using (15) with M particles.
+8 Compute P⋆
+G (Def. 3).
+9 do( ˜Xt = ˜xt) ← T (ht, bbt, bπ, sT, S , G, P⋆
+G) (18).
+10 Perform intervention do( ˜Xt = ˜xt) (10).
+11 Observe ot+1.
+12 Update history ht+1 = (ht, do( ˜Xt = ˜xt), ot+1) (11).
+13 end
+D. Comparison with Other Methods
+C-POMCP (Alg. 1) distinguishes itself from existing methods
+evaluated against the CAGE -2 benchmark ([5]–[13], [16]–[20])
+in four key aspects. First, it incorporates the causal structure
+of the target system. Second, it guarantees an optimal solution
+(Thm. 4). No such guarantees are available for the existing
+methods. Third, while the above-referenced methods ignore
+the latent variables, C-POMCP explicitly models the uncertainty
+of the latent variables and how this uncertainty changes in light
+of new observations (14). Fourth, in contrast to the existing
+offline methods, C-POMCP is an online method that updates
+the defender strategy at each time step.
+VII. E VALUATING C -POMCP AGAINST CAGE -2
+We implement C-POMCP (Alg. 1) in Python and run it to
+learn defender strategies for the CAGE -2 scenario [4]. The
+source code is available at [25]; the system configuration
+is listed in Appendix D; the hyperparameters are listed in
+Appendix C; and the computing environment is an M2-ultra
+processor.
+Baselines. We compare the performance of C-POMCP (Alg.
+1) with that of two baselines: CARDIFF -PPO, a current state-
+of-the-art method for CAGE -2 [5], and POMCP [24, Alg. 1],
+a non-causal version C-POMCP . Note that, while we only
+compare against CARDIFF -PPO from the CAGE -2 leaderboard,
+it represents all methods on the leaderboard since it achieves
+better performance than the other methods [4].
+Evaluation metrics. We use two evaluation metrics: the
+cumulative reward E[J] (9) and the cumulative regret [99]
+Rn ≜ nEπ⋆
+D[J] − Eπn,D
+" nX
+l=1
+Jl
+#
+, (20)
+where n is the total computational time in minutes, Jl is
+the value of (9) achieved after l minutes, and πn,D =
+(π1,D, π2,D, . . . , πn,D) represents the sequence of defender
+strategies after n minutes of computations (e.g., n minutes
+of tree search) [99]. Since computing Eπ⋆
+D[J] is PSPACE -hard
+[97, Thm. 6], we estimate Eπ⋆
+D[J] using the current state-of-
+the-art value when computing (20).
+A. CAGE -2 Scenarios
+The CAGE -2 scenario can be instantiated with different
+attacker strategies πA (4) as well as different topologies within
+each zone (see Fig. 1) [4]. Based on these parameters, we
+define the following evaluation scenarios.
+Scenario 1 (B-LINE attacker). In this scenario, the attacker
+strategy πA represents the B-LINE attacker from CAGE -2 [4],
+which attempts to move directly to the operational zone. The
+topology is shown in Fig. 1.
+Scenario 2 (MEANDER attacker). In this scenario, πA rep-
+resents the MEANDER attacker from CAGE -2 [4]. MEANDER
+explores the network one zone at a time, seeking to gain
+privileged access to all hosts in a zone before moving on to
+the next one, eventually arriving at the operational zone. The
+topology is shown in Fig. 1.
+Scenario 3 (RANDOM attacker). In this scenario, πA is B-LINE
+with probability 0.5 and MEANDER with probability 0.5. The
+topology is shown in Fig. 1.
+Scenario 4 (RANDOM topology). This scenario is the same as
+Scenario 1 except that the topologies of the enterprise and user
+zones are randomized at the start of each evaluation episode.
+B. CAGE -2 Benchmark Results
+The evaluation results are summarized in Figs. 10–11 and
+Tables 2–3. The results show that C-POMCP (Alg. 1) achieves
+the highest reward (9) and the lowest regret (20) across all
+evaluation scenarios and time horizons T . (The results are not
+statistically significant in all cases, though.)
+The green curves in Fig. 10 relate to C-POMCP . The blue and
+red curves relate to the baselines. The leftmost column in Fig.
+10 shows the regret (20). Notably, the regret of C-POMCP is
+two orders of magnitude lower than the regret of CARDIFF -PPO
+and one order of magnitude lower than the regret of POMCP .
+The three rightmost columns in Fig. 10 show the cumulative
+reward (9) obtained by C-POMCP and POMCP in function of
+the search time sT. We observe that C-POMCP achieves a sig-
+nificantly higher reward than POMCP , although the difference
+diminishes with increasing sT, which is expected (Thm. 4).
+We explain the improvement of C-POMCP compared to POMCP
+by the pruned search tree, which is obtained by leveraging the
+causal structure (Def. 3). The reduction in search tree size
+9
+
+--- PAGE 10 ---
+Method Training / search T = 30 T = 50 T = 100
+(minutes) (seconds)SCENARIO1 SCENARIO2 SCENARIO3 SCENARIO1 SCENARIO2 SCENARIO3 SCENARIO1 SCENARIO2 SCENARIO3
+CARDIFF 2000/ 10−4 −3.57±0.06 −5.69±1.68 −4.76±1.90 −6.44±0.16 −9.23±2.87 −7.64±2.78 −13.69±0.533 −17.16±4.41 −15.28±4.18
+C-POMCP0 / 0.05 −4.64±0.5 −5.73±0.08 −5.18±0.13 −9.20±0.38 −9.35±0.16 −9.27±0.67 −25.05±3.02 −18.29±0.13 −21.67±3.19
+C-POMCP0 / 0.1 −3.89±0.25 −5.62±0.14 −4.75±0.34 −8.46±0.27 −8.92±0.23 −8.69±0.47 −21.28±0.72 −17.38±0.20 −19.33±1.03
+C-POMCP0 / 0.5 −4.00±0.14 −5.61±0.02 −4.81±0.24 −7.38±0.19 −8.62±0.18 −8.00±0.44 −18.08±1.32 −16.81±0.14 −17.45±1.14
+C-POMCP0 / 1 −3.64±0.13 −5.52±0.16 −4.58±0.27 −6.60±0.32 −8.55±0.08 −7.58±0.29 −17.42±1.08 −16.34±0.44 −16.88±1.29
+C-POMCP0 / 5 −3.50±0.11 −5.65±0.11 −4.57±0.23 −6.52±0.34 −8.46±0.11 −7.49±0.46 −13.23±0.43 −16.46±0.30 −14.85±0.79
+C-POMCP0 / 15 −3.37±0.08 −5.66±0.11 −4.52±0.19 −6.57±0.38 −8.57±0.13 −7.57±0.52 −12.98±1.55 −15.87±0.67 −14.43±1.99
+C-POMCP0 / 30 −3.42±0.09 −5.70±0.09 −4.56±0.14 −6.34±0.28 −8.52±0.18 −7.43±0.52 −13.32±0.18 −16.05±0.96 −14.68±1.02
+POMCP 0 / 0.05 −6.87±0.21 −9.50±0.19 −8.19±0.37 −13.90±0.24 −22.26±0.44 −18.08±0.72 −38.71±1.99 −50.24±2.67 −44.48±3.11
+POMCP 0 / 0.1 −6.31±0.12 −8.70±0.07 −7.51±0.19 −13.71±0.22 −20.20±0.47 −16.96±0.76 −38.02±0.53 −46.40±0.64 −42.21±0.79
+POMCP 0 / 0.5 −5.32±0.24 −8.28±0.13 −6.80±0.33 −12.89±0.20 −19.16±0.09 −16.03±0.33 −34.92±0.96 −47.29±0.39 −41.11±1.23
+POMCP 0 / 1 −5.27±0.65 −7.68±0.10 −6.48±0.75 −12.57±0.41 −18.38±0.50 −15.48±0.94 −34.50±0.65 −47.02±1.75 −40.76±2.34
+POMCP 0 / 5 −5.11±0.32 −7.58±0.05 −6.35±0.36 −12.03±0.93 −18.22±0.19 −15.13±1.18 −33.06±0.21 −45.15±0.54 −39.13±0.66
+POMCP 0 / 15 −5.18±0.66 −7.30±0.38 −6.24±1.22 −11.32±0.84 −17.68±0.58 −14.50±1.37 −30.88±1.41 −45.19±0.35 −38.04±1.57
+POMCP 0 / 30 −4.50±0.17 −6.92±0.59 −5.71±0.77 −9.88±1.63 −17.55±0.44 −13.72±2.09 −29.51±2.00 −44.27±1.13 −36.89±2.49
+TABLE 2: Comparing C-POMCP with baselines: CARDIFF -PPO [5] and POMCP [24]; columns indicate the time horizon T (9); subcolumns indicate the
+evaluation scenario (§VII-A); numbers indicate the mean and the standard deviation of the reward J (9) from evaluations with 3 random seeds.
+10−1 100 101 102
+101
+102
+103
+CARDIFF-PPO C-POMCP POMCP
+RegretRn (20),T = 100
+2−4 2−1 22
+−6
+−4
+RewardE[J] (9),T = 30
+2−4 2−1 22
+−12
+−10
+−8
+−6
+RewardE[J] (9),T = 50
+2−4 2−1 22
+−30
+−20
+RewardE[J] (9),T = 100
+10−1 100 101 102
+101
+102
+103
+2−4 2−1 22
+−8
+−6
+2−4 2−1 22
+−15
+−10
+2−4 2−1 22
+−40
+−30
+−20
+−10
+10−1 100 101 102
+101
+102
+103
+Training + total search time (min)n
+2−4 2−1 22
+−6
+−4
+Search time per time-step (s)
+2−4 2−1 22
+−15
+−10
+−5
+Search time per time-step (s)
+2−4 2−1 22
+−40
+−30
+−20
+−10
+Search time per time-step (s)
+SCENARIO1SCENARIO2SCENARIO3
+Fig. 10: Comparing C-POMCP (green curves) with baselines: CARDIFF -PPO [5] (blue curves) and POMCP [24] (red curves); rows indicate the evaluation
+scenario (§VII-A); the curves show the mean value from evaluations with 3 random seeds; shaded areas indicate the standard deviation; the number of data
+points on the x-axis is 2000 for the left-most column and 10 for the other columns.
+5 10 15 20 25
+85
+90
+95
+100
+Scenario 1 Scenario 2
+t
+% reduction of the search tree size
+Fig. 11: Effect of the pruning of the search tree in C-POMCP .
+Method Training (min) Search (s) RewardE[J] (9)
+CARDIFF-PPO[5] 2000 10 −4 −429±167
+C-POMCP 0 30 −13.32±0.18
+POMCP [24] 0 30 −29.51 ±2.00
+TABLE 3: Evaluation results for Scenario 4 with T = 100.
+achieved by the pruning is shown in Fig. 11. We see that the
+pruning reduces the size of the search tree by around 90–95%.
+Lastly, Table 3 contains the results for Scenario 4. We find
+that C-POMCP and POMCP are agnostic to changes in the
+topology within each zone. By contrast, the performance of
+CARDIFF -PPO reduces drastically when the topology changes,
+indicating that its strategy is overfitted to the training environ-
+ment [5]. CARDIFF -PPO has shown similar behavior in [100].
+C. Discussion of the CAGE -2 Benchmark Results
+The key findings from the CAGE -2 benchmark results are:
+1) Leveraging the causal structure of the target system, C-
+POMCP achieves state-of-the-art performance (Figs. 10–
+11, Table 2).
+2) The interventions prescribed by C-POMCP are guaranteed
+to converge to optimal interventions as sT → ∞ (Thm.
+4), which is consistent with the evaluation results.
+3) C-POMCP is two orders of magnitude more efficient
+in computing time than the state-of-the-art method
+CARDIFF -PPO (Fig. 10).
+4) C-POMCP is an online method and can adapt to changes
+in the topology of the target system (Table 3).
+10
+
+--- PAGE 11 ---
+Surprisingly, the results demonstrate that C-POMCP requires
+only 5 − 15 seconds of search to achieve competitive perfor-
+mance on the CAGE -2 benchmark. The fact that C-POMCP per-
+forms significantly better than its non-causal version POMCP
+[24, Alg. 1] indicates that the main enabler of the efficiency is
+the causal structure, which we exploit for pruning the search
+space. This observation suggests limitations of existing meth-
+ods that narrowly focus on model-free reinforcement learning
+and do not consider the causal structure of the underlying
+system.
+While the results demonstrate clear benefits of C-POMCP
+compared to the existing methods, C-POMCP has two draw-
+backs. First, execution of C-POMCP is slower than that of
+pre-trained methods (see Table 2, typically 10−4s vs 10s).
+Second, the performance of C-POMCP depends on the causal
+structure of the target system [22, Def. 2.2.1]. If no causal
+structure is known, the performance of C-POMCP drops (cf.
+the performance of C-POMCP and POMCP in Table 2).
+VIII. C ONCLUSION
+This paper presents a formal (causal) model of CAGE -2
+(M1), which is considered a standard benchmark to evaluate
+methods for autonomous cyber defense [4]. Based on this
+model, we prove the existence of optimal defender strategies
+(Thm. 1) and design an iterative method that converges to such
+a strategy (Thm. 4). The method, which we call Causal Par-
+tially Observable Monte-Carlo Planning (C-POMCP ), leverages
+causal structure to prune, construct and traverse a search tree
+(Alg. 1). C-POMCP has four advantages over the state-of-the-
+art methods that have been proposed in the context of CAGE -2:
+(i) it is two orders of magnitude more computationally efficient
+(Fig. 10); ( ii) it achieves better performance (Table. 2); ( iii)
+it is an online method which adapts to topology changes in
+the target system (Table 3); and ( iv), it produces provably
+optimal defender strategies (Thm. 4). Future work will focus
+on leveraging causal discovery techniques to automate the
+process of creating a causal graph of the underlying system.
+IX. A CKNOWLEDGMENTS
+The authors are grateful to DARPA and program manager
+Tejas Patel for supporting this research. The authors would
+also like to thank the Siemens research team for discus-
+sions and feedback: Enrico Lovat, Jagannadh Vempati, Anton
+Kocheturov, Arun Ramamurthy, Arif Haque, and Abhishek
+Ramchandran. Finally, the authors thank KTH researchers
+Forough Shahab Samani, Xiaoxuan Wang, and Duc Huy Le
+for constructive comments.
+APPENDIX A
+PROOF OF THEOREM 3
+1) CASE : t = 1.
+PROOF : b1 is given, hence bb1 = b1.
+2) CASE : t > 1.
+PROOF : Assume bbt−1 = bt−1 and let
+g(σt) ≜
+X
+σt−1
+bbt−1(σt−1)P (σ|σt−1, do(bXt−1 =bxt−1)).
+We then have that
+bt(σ) = Eσ∼bt[1 σ=σ] =
+X
+σ
+bt(σ)1 σ=σ
+(a)
+=
+X
+σ
+g(σ)
+g(σ)bt(σ)1 σ=σ = Es∼g
+bt(σ)
+g(σ) 1 σ=σ
+
+(b)
+= Eσ∼g
+ ηP (ot | σt)g(σ)
+g(σ) 1 σ=σ
+
+= Eσ∼g [ηP (ot | σt)1 σ=σ] , (21)
+where (b) follows from the definition of b.
+As bbt−1 = bt−1, the denominator in (a) is non-zero
+for all σ where bt(σ) > 0. Since the particles are
+distributed according to η′ηP (ot|σt)g(bσt) (η′ is a nor-
+malizing factor), it follows from the strong law of large
+numbers [101, Thm. 6.2] thatbb(σt) = 1
+M
+PM
+i=1 1 σt=bσ(i)
+t
+converges P -almost surely to (21) as M → ∞. (Remark:
+the probability measure P in (21) exists since |dom(Σt)∪
+dom(Ot)| < ∞ (Thm. 1, [102, Thm. 2.2.1]).)
+APPENDIX B
+PROOF OF THEOREM 4
+It follows from Thm. 3 and [24, Lem. 1–2] that C-POMCP
+corresponds to the UCT algorithm [98, Fig. 1] when M → ∞.
+Hence, we can base the proof of convergence of C-POMCP
+on the proof of convergence for UCT, which was originally
+published in [98]. The key insight behind the proof is that the
+decision problem at each node in the search tree corresponds
+to a non-stationary multi-armed bandit ( MAB), which becomes
+stationary if the prescribed actions at the child nodes converge.
+Further, the tree policy corresponds to the UCB 1 algorithm
+[103, Fig. 1]. As a consequence, it suffices to prove that UCB 1
+converges at each node in the search tree. Towards this proof,
+we state and prove the following six lemmas.
+Notation. K = O(|2Xt |) is the number of arms in the MAB at
+each node in the search tree; t indexes the MAB rounds; Ri,t
+is the reward of arm i at round t; Ri,n = 1
+n
+Pn
+k=1 Ri,n is the
+mean reward of arm i based on n samples; µi,n is the mean of
+Ri,n; µi ≜ limn→∞ µi,n; µi ≜ µi,n −δi,n; Ti(t) is the number
+of times arm i has been pulled at round t; ∆i ≜ µ⋆ − µi; It
+is the arm picked at round t; and ct,n is the exploration term
+in UCB 1 for an arm that has been pulled n times at round t.
+Quantities related to the optimal arm are superscripted by ⋆,
+i.e., µ⋆, T ⋆(t), etc.
+Assumption 1 (Bounded rewards and asymptotic stationarity).
+1) Ri,n ∈ [0, 1] for all i and n.
+2) The limit µi = limt→∞ µi,t exists for each arm i.
+3) There exists a constant Cp and an integer Np such that
+for n ≥ Np and any δ ≥ 0, the following bounds hold.
+P (nRi,n ≥ nµi,n + Cp
+p
+n ln(1/δ)) ≤ δ
+P (nRi,n ≥ nµi,n − Cp
+p
+n ln(1/δ)) ≤ δ.
+Lemma 1. Given Assumption 1, if ct,n = 2Cp
+q
+ln t
+n , then
+P (Ri,n ≥ µi,n + ct,n) ≤ t−4 n ≥ Np
+11
+
+--- PAGE 12 ---
+P (Ri,n ≥ µi,n − ct,n) ≤ t−4 n ≥ Np.
+Proof.
+P (nRi,n ≥ nµi,n + Cp
+p
+n ln(1/δ))
+(Assumption 1)
+≤ δ
+=⇒ P (Ri,n ≥ µi,n + Cp
+r
+ln(1/δ)
+n ) ≥ δ
+(δ=t−4)
+=⇒ P (Ri,n ≥ µi,n + 2Cp
+r
+ln(t)
+n ) ≥ t−4.
+Lemma 2. If Assumption 1 holds, then there exists an integer
+N0(ϵ) such that t ≥ N0(ϵ) = ⇒ | δi,t| ≤ ϵ∆i
+2 and |δj⋆,t| ≤
+mini ϵ∆i
+2 for all ϵ > 0.
+Proof. Follows by the definition of Assumption 1.
+Lemma 3. Given Assumption 1, if the exploration term used
+by UCB 1 [103, Fig. 1] is ct,s = 2Cp
+q
+ln t
+s , then
+E[Ti(t)] ≤ 16C2
+p ln t
+(1 − ϵ)2∆2
+i
++ N0(ϵ) + Np + 1 + π2
+3 (22)
+for all ϵ > 0 and each sub-optimal arm i.
+Proof. Let A0(t, ϵ) ≜ min{s|ct,s ≤ (1 − ϵ)∆i/2} and
+A(t, ϵ) ≜ max[A0(t, ϵ), N0(ϵ), Np]. Next note that
+ct,s ≤ (1 − ϵ)∆i/2 = ⇒ 2Cp
+r
+ln t
+s ≤ (1 − ϵ)∆i/2
+=⇒ 16Cp
+ln t
+s ≤ (1 − ϵ)2∆2
+i =⇒ s ≥ 16Cp ln t
+(1 − ϵ)2∆2
+i
+=⇒ A0(t, ϵ) =
+ 16Cp ln t
+(1 − ϵ)2∆2
+i
+
+.
+Now consider Ti(n). By definition:
+Ti(n) = 1 +
+nX
+t=K+1
+1 {It = i} (23)
+= 1 +
+nX
+t=K+1
+1 {It = i, Ti(t − 1) ≥ A(n, ϵ)} +
+nX
+t=K+1
+1 {It = i, Ti(t − 1) < A(n, ϵ)}
+(a)
+≤ A(n, ϵ) +
+nX
+t=K+1
+1 {It = i, Ti(t − 1) ≥ A(n, ϵ)}
+(b)
+≤ A(n, ϵ) +
+nX
+t=K+1
+1
+n
+R
+⋆
+T ⋆(t−1) + ct−1,T ⋆(t−1) ≤
+Ri,Ti(t−1) + ct−1,Ti(t−1), Ti(t − 1) ≥ A(n, ϵ)
+o
+≤ A(n, ϵ) +
+nX
+t=K+1
+1
+n
+min
+0<s<t
+R
+⋆
+s + ct−1,s ≤
+max
+A(n,ϵ)<si<t
+Ri,si + ct−1,si
+o
+≤ A(n, ϵ) +
+nX
+t=K+1
+t−1X
+s=1
+t−1X
+si=A(n,ϵ)
+1
+n
+R
+⋆
+s + ct−1,s
+≤ Ri,si + ct−1,si
+o
+,
+where (a) follows because the second sum is upper bounded
+by n − K and n < A (n, ϵ) = ⇒ Ti(n) < A(n, ϵ). (b) follows
+from the arm-selection rule in UCB 1 [103, Fig. 1].
+Next note that for t ≥ A(n, ϵ) ≥ N0(ϵ), we have µ⋆
+t ≥
+µi,t + 2ct,si. This inequality holds because
+µ⋆
+t ≥ µi,t + 2ct,si ⇐ ⇒ µ⋆
+t − µi,t − 4Cp
+r
+ln t
+si
+≥ 0
+(t≥A0 (n,ϵ) )
+⇐ ⇒ µ⋆
+t − µi,t − (1 − ϵ)∆i ≥ 0
+⇐ ⇒ µ⋆
+t + δ⋆ − µi,t − δi,t − (1 − ϵ)∆i ≥ 0
+(Lemma 2)
+⇐ ⇒ µ⋆
+t − ϵ∆i − µi,t − (1 − ϵ)∆i ≥ 0
+⇐ ⇒ µ⋆
+t − µi,t − ∆i ≥ 0 ⇐ ⇒ ∆i − ∆i ≥ 0. (24)
+Using the above inequality, we deduce that
+P (R
+⋆
+s + ct−1,s ≤ Ri,si + ct−1,si) ≤ (25)
+P (R
+⋆
+s ≤ µ⋆
+t + ct,s) + P (X i,si ≥ µi,t + ct,si).
+This follows because if the left inequality above holds and the
+right inequalities do not hold, we obtain
+R
+⋆
+s + ct−1,s ≤ Ri,si + ct−1,si
+=⇒ µ⋆
+t − ct,s + ct−1,s < µ i,t + ct,si + ct−1,si
+=⇒ µ⋆
+t < µ i,t + 2ct,si ,
+which by (24) is false for t ≥ A(n, ϵ) ≥ N0(ϵ). Now we take
+expectations of both sides of the inequality in (23) and plug
+in (25), which gives
+E[Ti(n)] ≤ A(n, ϵ) +
+nX
+t=K+1
+t−1X
+s=1
+t−1X
+si=A(n,ϵ)
+P (R
+⋆
+s ≤ µ⋆
+t + ct,s)
++ P (X i,si ≥ µi,t + ct,si)
+(Lemma 1)
+≤ A(n, ϵ) +
+nX
+t=K+1
+t−1X
+s=1
+t−1X
+si=A(n,ϵ)
+2t−4
+≤ A(n, ϵ) +
+∞X
+t=1
+tX
+s=1
+tX
+si=1
+2t−4
+= A(n, ϵ) +
+∞X
+t=1
+t−2 + t−3 ≤ A(n, ϵ) +
+∞X
+t=1
+t−2 +
+∞X
+t=1
+t−2
+(a)
+= A(n, ϵ) + π2
+3 ≤ 16Cp ln t
+(1 − ϵ)2∆2
+i
++ 1 + N0(ϵ) + Np + π2
+3 ,
+where (a) follows from the Riemann zeta function ζ(2) =P∞
+t=1 t−2 = π2
+6 .
+Lemma 4 (Lower bound). Given Assumption 1, there exists a
+positive constant ρ such that for all i and t, Ti(t) ≥ ⌈ρ log t⌉.
+Proof. Since Ri,t ∈ [0, 1] and Ti(t − 1) ≥ 1 for all t ≥ K,
+there exists a constant M such that
+µi,t + 2C
+s
+ln t
+Ti(t − 1) ≤ M
+=⇒ Ti(t − 1) ≥ 4C2 ln t
+(M − µi − δi,t)2
+12
+
+--- PAGE 13 ---
+for all i and K ≤ t < ∞. Next note that Assumption 1 implies
+that limt→∞ δi,t = 0, which means that there exists a constant
+ρ ≥ 4C2
+(M −µi−δi,t)2 . Hence Ti(t) ≥ ⌈ρ log t⌉.
+Lemma 5. Let Rn =PK
+i=1
+Ti(n)
+n X i,Ti(n) and N0 = N0(ϵ =
+1
+2). Then, the following holds under Assumption 1.
+|E[Rn] − µ⋆| ≤ | δ⋆
+n| + O
+ 
+K(C2
+p ln n + N0)
+n
+!
+.
+Proof. By the triangle inequality,
+|E[Rn] − µ⋆| ≤ | µ⋆ − µ⋆
+n| + |µ⋆
+n − E[Rn]|
+= |δ⋆
+n| + |µ⋆ − E[X n]|.
+Hence it only remains to bound |µ⋆ − E[X n]|. By definition:
+|µ⋆ − E[X n]| =
+µ⋆ − E
+" KX
+i=1
+Ti(n)Ri,Ti(n)
+n
+# (26)
+=⇒ n|µ⋆ − E[X n]| =
+
+nX
+t−1
+E[R⋆
+t ] − E
+" KX
+i=1
+Ti(n)Ri,Ti(n)
+#
+(q)
+=
+
+nX
+t−1
+E[R⋆
+t ] − E
+h
+T ⋆(n)R
+⋆
+T ⋆(n)
+i − E
+
+X
+i̸=i⋆
+Ti(n)Ri,Ti(n)
+
+ ,
+where (a) follows because Ri,t ∈ [0, 1] for all i and t
+(Assumption 1). We start by bounding the second term in (26):
+E
+
+X
+i̸=i⋆
+Ti(n)Ri,Ti(n)
+
+ ≤ E
+
+X
+i̸=i⋆
+Ti(n)
+
+
+(Lemma 3)
+≤ K
+ 
+16C2
+p ln t
+(1 − ϵ)2∆2
+i
++ N0(ϵ) + Np + 1 + π2
+3
+!
+= O
+ 
+K
+ 
+C2
+p ln n + N0(ϵ)
+
+.
+Now we consider the first term in (26). Note that
+T ⋆(n)R
+⋆
+T (⋆)(n) = T ⋆(n)
+T ⋆(n)
+PT ⋆(n)
+t=1 R
+⋆
+t =PT ⋆(n)
+t=1 R
+⋆
+t . Using this
+expression we obtain:
+
+nX
+t−1
+E[R⋆
+t ] − E
+h
+T ⋆(n)R
+⋆
+T ⋆(n)
+i =
+
+E
+
+
+nX
+t−1
+R⋆
+t −
+T ⋆(n)X
+t−1
+R⋆
+t
+
+
+
+(a)
+=
+nX
+t=T ⋆(n)+1
+E [R⋆
+t ] ≤ E[n − T ⋆(n)] =
+X
+i̸=i⋆
+E[Ti(n)]
+(Lemma 3)
+≤ K
+ 
+16C2
+p ln t
+(1 − ϵ)2∆2
+i
++ N0(ϵ) + Np + 1 + π2
+3
+!
+= O
+ 
+K
+ 
+C2
+p ln n + N0(ϵ)
+
+,
+where (a) follows from the fact that Ri,t ∈ [0, 1] for all i and
+t (Assumption 1).
+Lemma 6. Let n0 be such that √n0 ≥ O (K(C2
+p ln n0 +
+N0( 1
+2))). Given Assumption 1, the following holds for any
+n ≥ n0 and δ > 0:
+P
+
+nX n ≥ nE[X n] + 9
+p
+2 ln(2/δ)
+
+≤ δ
+P
+
+nX n ≥ nE[X n] − 9
+p
+2 ln(2/δ)
+
+≤ δ.
+Proof. This lemma was originally proved by Kocsis &
+Szepesv´ari [98, Thm. 5]. A more accessible version of the
+proof can be found in [104, Thm. 5]. We omit the full proof
+for brevity. For the sake of completeness, we briefly outline the
+main ideas behind the proof here. The proof involves defining
+a counting process that represents the number of times a sub-
+optimal arm is pulled and then bounding the deviation of
+this process. Key to this argument is the Hoeffding-Azuma
+inequality [98, Lem. 8–10]. By leveraging this inequality and
+martingale theory, it is possible to conclude that the desired
+inequalities must hold.
+Lemma 7. Given Assumption 1, limt→∞ P (It ̸= i⋆) = 0.
+Proof. Let pi,t = P (Ri,Ti(t) ≥ R⋆
+T ⋆(t)). Clearly, P (It ̸=
+i⋆) ≤ P
+i̸=i⋆ pit. Hence it suffices to show that pi,t ≤ ϵ
+K
+for all i and any ϵ > 0. Towards this proof, note that if
+Ri,Ti(t) < µ i + ∆i
+2 and R
+⋆
+T ⋆(t) > µ ⋆ − ∆
+2 , then
+Ri,Ti(t) < µ i + ∆i
+2 = µ⋆ − ∆i
+2 < R
+⋆
+T ⋆(t).
+As a consequence,
+pi,t ≤ P
+
+Ri,Ti(t) < µ i + ∆i
+2
+
++ P
+
+R
+⋆
+T ⋆(t) > µ ⋆ − ∆
+2
+
+.
+Since Ti(t) grows slower than T ⋆(t), it suffices to bound the
+first of the two terms above. By definition:
+P
+
+Ri,Ti(t) < µ i + ∆i
+2
+
+= P
+
+Ri,Ti(t) < µ i,Ti(t) − |δi,Ti(t)| + ∆i
+2
+
+.
+Next note that |δi,Ti(t)| converges to 0 by Assumption 1.
+Hence, we can assume that |δi,Ti(t)| is decreasing in t with-
+out loss of generality. It then follows from Lemma 4 that
+|δi,Ti(t)| ≤ | δi,⌈ρ log t⌉|. Now consider t ≥ ⌈ρ log t⌉ ≥ N0( ∆
+4 ),
+then |δi,Ti(t)| ≤ | δi,⌈ρ log t⌉| ≤ ∆i
+4 by Lemma 2. As a
+consequence,
+P
+
+Ri,Ti(t) < µ i,Ti(t) − |δi,Ti(t)| + ∆i
+2
+
+(27)
+≤ P
+
+Ri,Ti(t) < µ i,Ti(t) + ∆i
+4
+
+≤ P
+
+Ri,Ti(t) < µ i,Ti(t) + ∆i
+4 , Ti(t) ≥ a
+
++ P (Ti(t) ≤ a) .
+Since limt→∞ Ti(t) = ∞ (Lemma 4), we have that
+limt→∞ P (Ti(t) < a ) = 0 for any a. Hence it suffices to
+bound the first term in (27), which can be done as follows.
+P
+
+Ri,Ti(t) < µ i,Ti(t) + ∆i
+4 , Ti(t) ≥ a
+
+≤
+P
+
+Ri,Ti(t) < µ i,Ti(t) + ∆i
+4 | Ti(t) ∈ [a, b]
+
+P (Ti(t) ∈ [a, b])
++ P (Ti(t) ̸∈ [a, b]) .
+Next note that
+P
+
+Ri,Ti(t) < µ i,Ti(t) + ∆i
+4 | Ti(t) ∈ [a, b]
+
+13
+
+--- PAGE 14 ---
+≤
+bX
+k=a
+P
+
+Ri,k < µ i,k + ∆i
+4
+
+≤ (b − a + 1) max
+a≤k≤b
+P
+
+Ri,k < µ i,k + ∆i
+4
+
+.
+Now we use Assumption 1, which implies that the value of a
+in the expression above can be chosen such that for all t ≥ a,
+(t + 1)P (X i,t ≥ µi,t + ∆i
+4 ) < ϵ
+2K , which means that
+(b − a + 1) max
+a≤k≤b
+P
+
+Ri,k < µ i,k + ∆i
+4
+
+=b=2a (a + 1) max
+a≤k≤b
+P
+
+Ri,k < µ i,k + ∆i
+4
+
+≤ (a + 1)P
+
+Ri,a < µ i,a + ∆i
+4
+
+≤ ϵ
+2K .
+Putting the bounds above together, we get:
+P (It ̸= i⋆) ≤
+X
+i̸=i⋆
+pit ≤ K ϵ
+K = ϵ.
+Now we use Lemmas 1–7 to prove Thm. 3.
+A. Proof of Theorem 4
+The proof uses mathematical induction on the time horizon
+T , corresponding to the search tree’s depth. Without loss of
+generality, we assume that the target variables are normalized
+to the interval [0, 1].
+For the inductive base case where T = 2 , C-POMCP
+corresponds to a stationary MAB problem, which means that
+Assumption 1.1–2 hold. Further, Assumption 1.3 follows from
+Hoeffding’s inequality:
+P
+ 
+Ri,n ≤ µi,n ± 1
+n
+r
+ln t
+n
+!
+≤ e−2
+√
+2 ln t
+n
+n = e−4 lnt = t−4.
+As a consequence, we can invoke Lemma 5 and Lemma 7,
+which asserts that the theorem statement holds when T = 2.
+Assume by induction that the theorem statement holds for
+time horizons 3, 4, . . . ,T − 1 and consider time horizon T . By
+Thm. 3, the problem of finding an optimal intervention from
+the root node when the horizon is T corresponds to a non-
+stationary MAB with correlated rewards. This MAB satisfies
+Assumption 1.1 if the rewards are divided by T . Further, it
+follows from the induction hypothesis that the reward distribu-
+tions in each subtree converge, which means that Assumption
+1.2 holds. Moreover, the induction hypothesis together with
+Lemma 6 implies that Assumption 1.3 is satisfied. As a
+consequence, we can apply Lemma 7, which ensures that the
+intervention prescribed at the root converges to an optimal
+intervention. Similarly, we can apply Lemma 5, which states
+that
+E
+
+Rn − µ⋆
+n
+ ≤ |δ⋆| + O
+ 
+KC 2
+p ln n + N0
+n
+!
+,
+where Rn is the average reward at the root. By the induction
+hypothesis,
+|δ⋆| = O
+ K(T − 1) logn + K T −1
+n
+
+.
+Parameters Values
+Model parameters
+βR,1, βR,2, βR,3 0.1, 1, 1
+βIi,t,z 0 if Ii,t ̸= R
+qt 1 for restore interventions,0 otherwise
+ψzi 10if zi = 3, 0 otherwise
+Cyborg version [105] commit 9421c8e
+C-POMCPandPOMCP[24, Alg. 1]
+search time, default node value 0.05s–30s, 0
+M, γ, c 1000, 0.99, 0.5
+rollout depth, maximum search depth 4, 50
+intervention space intervention space described in [5]
+base strategy, base value bπD(do(∅)) = 1, Jbπ(·) = 0
+CARDIFF-PPO [81, Alg. 1] [5]
+learning rate, # hidden layers, 5148·10−5, 1,
+# neurons per layer, # steps between updates,64, 2048,
+batch size, discount factorγ 16, 0.99
+GAE λ, clip range, entropy coefficient 0.95, 0.2, 2 ·10−4
+value coefficient, max gradient norm 0.102, 0.5
+feature representation the original cyborg features [105] &
+one-hot encoded scan-state &
+decoy-state for each node
+TABLE 4: Hyperparameters.
+Hence,
+E[Rn − µ⋆
+n]
+ ≤ O
+ K(T − 1) logn + K T −1
+n
+
++ O
+ 
+KC 2
+p ln n + N0
+n
+!
+.
+Thus, it only remains to bound N0. It follows from Lemma 2
+that N0 is upper bounded by the smallest value of n for which
+the following inequality holds
+K(T − 1) logn + K T −1
+n ≥ ∆i
+2
+=⇒ 2
+ 
+K T −1 + K(T − 1) logn
+
+∆i
+≥ n
+=⇒ N0 = O(K T −1).
+As a consequence,
+E[Rn − µ⋆
+n]
+ ≤ O
+ K(T − 1) logn + K T −1
+n
+
++ O
+ 
+KC 2
+p ln n + K T
+n
+!
+= O
+(KT log n + K T )
+n
+
+.
+Hence, by induction, the theorem holds for all T .
+APPENDIX C
+HYPERPARAMETERS
+The hyperparameters used for the evaluation are listed in
+Table 4 and were obtained through random search.
+APPENDIX D
+CONFIGURATION OF THE TARGET SYSTEM (FIG. 1)
+The configuration of the target system in CAGE -2 (Fig. 1)
+is available in Table 5. The attacker actions are listed in Table
+6 and the defender interventions are listed in Table 7. The
+decoy services are listed in Table 8, and the workflow graph
+is shown in Fig. 12.
+14
+
+--- PAGE 15 ---
+NodeID, hostname Processes Ports Users Vulnerabilities
+1, CLIENT-1 SSHD.EXE 22 SSHDSERVER CWE-251
+FEMITTER.EXE 21 SYSTEM CVE -2020-26299
+2, CLIENT-2 SMSS.EXE 445,139 SYSTEM -
+SVCHOST.EXE 135 SYSTEM -
+SVCHOST.EXE 3389 NETWORK CVE -2019-0708
+3, CLIENT-3 MYSQL 3389 ROOT CVE -2019-0708
+APACHE2 80,443 WWW-DATA CWE -89,HTTP-(S)RFI
+SMTP 25 ROOT CVE -2016-1000282
+4, CLIENT-4 SSHD 22 ROOT CWE -251
+MYSQL 3390 ROOT CWE -89
+APACHE2 80, 443 WWW-DATA CWE -89,HTTP-(S)RFI
+SMTP 25 ROOT CVE -2016-1000282
+5, ENTERPRISE-1 SSHD.EXE 22 ROOT CWE -251
+6, ENTERPRISE-2 SSHD.EXE 22 SSHDSERVER CWE-251
+SVCHOST.EXE 135 SYSTEM -
+SVCHOST.EXE 3389 SYSTEM CVE -2019-0708
+SMSS.EXE 445,139 SYSTEM CVE -2017-0144
+TOMCAT8.EXE 80,443 NETWORK CWE -89,HTTP-(S)RFI
+7, ENTERPRISE-3 SSHD.EXE 22 SSHDSERVER CWE-251
+SVCHOST.EXE 135 SYSTEM -
+SVCHOST.EXE 3389 SYSTEM CVE -2019-0708
+SMSS.EXE 445,139 SYSTEM CVE -2017-0144
+TOMCAT8.EXE 80,443 NETWORK CWE -89,HTTP-(S)RFI
+8, OPERATIONAL-1 SSHD 22 ROOT CWE -251
+9, OPERATIONAL-2 SSHD 22 ROOT CWE -251
+10,OPERATIONAL-3 SSHD 22 ROOT CWE -251
+11,OPERATIONAL-4 SSHD 22 ROOT CWE -251
+12,DEFENDER SSHD 22 ROOT CWE -251
+SYSTEMD 53,78 SYSTEMD+
+13,ATTACKER SSHD .EXE 22 SSHDSERVER CWE-251
+FEMITTER.EXE 21 SYSTEM CVE -2020-26299
+TABLE 5: Configuration of the target system in CAGE -2 (Fig. 1); vulnera-
+bilities are identified by their identifiers in the Common Vulnerabilities and
+Exposures ( CVE) database [106] and the Common Weakness Enumeration
+(CWE) list [107].
+Type Actions MITRE ATT&CK technique
+Reconnaissance Subnet scan for nodes T1018 system discovery
+Port scan on a specific node T1046 service scanning
+Exploits CVE-2017-0144,HTTP-SRFI T 1210 service exploitation
+SQL INJECTION(CWE-89) T1210 service exploitation
+CVE-2016-1000282 T1210 service exploitation
+CVE-2020-26299HTTP-RFI T 1210 service exploitation
+Brute-force SSH T 1110 brute force
+Escalate Escalate privileges of user to root T1068 privilege escalation
+Impact Stop services running on node T1489 service stop
+TABLE 6: Attacker actions in CAGE -2 [4].
+Type Interventions MITRE D3FEND TECHNIQUE
+Monitor Network monitoring D3-NTAnetwork analysis
+Forensic analysis D3-FA file analysis
+Start decoys APACHE, FEMITTER D 3-DE decoy environment
+HARAKA, SMSS D 3-DE decoy environment
+SSHD, SVCHOST TOMCAT D 3-DE decoy environment
+Restore Restore node to a checkpoint D3-RA restore access
+Attempt to remove attacker D3-FEV file eviction
+TABLE 7: Defender interventions in CAGE -2 [4].
+ID Name Description
+1 DECOY-APACHE Starts a vulnerableAPACHE HTTP server decoy
+2 DECOY-FEMITTER Starts a vulnerableFEMITTER FTP server decoy
+3 DECOY-SMTP Starts a vulnerableHARAKA SMTP server decoy
+4 DECOY-SMSS Starts a vulnerableSMSS server decoy
+5 DECOY-SSHD Starts anSSH server decoy with a weak password
+6 DECOY-SVCHOST Starts a vulnerableSVCHOST.EXE process decoy
+7 DECOY-TOMCAT Starts a vulnerableTOMCAT HTTP server decoy
+8 DECOY-VSFTPD Starts a vulnerableVSFTPD FTP server decoy
+TABLE 8: Decoy services in CAGE -2 [4].
+1 2 3 4
+5 6
+7
+8
+Fig. 12: Workflow graph GW in CAGE -2 [4]; circles represent nodes of the
+target system (Fig. 1) and edges represent service dependencies.
+REFERENCES
+[1] T. Alpcan and T. Basar, Network Security: A Decision and Game-
+Theoretic Approach, 1st ed. USA: Cambridge University Press, 2010.
+[2] E. Miehling, M. Rasouli, and D. Teneketzis, Control-Theoretic Ap-
+proaches to Cyber-Security. Springer, 2019, pp. 12–28.
+[3] Y . Huang, L. Huang, and Q. Zhu, “Reinforcement learning for
+feedback-enabled cyber resilience,” Annual Reviews in Control , 2022.
+[4] CAGE, “Ttcp cage challenge 2,” in AAAI-22 Workshop on Artifi-
+cial Intelligence for Cyber Security (AICS) , 2022, https://github.com/
+cage-challenge/cage-challenge-2.
+[5] S. Vyas, J. Hannay, A. Bolton, and P. P. Burnap, “Automated cy-
+ber defence: A review,” 2023, code: https://github.com/john-cardiff/
+-cyborg-cage-2.
+[6] M. Wolk, A. Applebaum, C. Dennler, P. Dwyer, M. Moskowitz,
+H. Nguyen, N. Nichols, N. Park, P. Rachwalski, F. Rau, and A. Webster,
+“Beyond cage: Investigating generalization of learned autonomous
+network defense policies,” 2022.
+[7] E. Bates, V . Mavroudis, and C. Hicks, “Reward shaping for happier
+autonomous cyber security agents,” in Proceedings of the 16th ACM
+Workshop on Artificial Intelligence and Security , ser. AISec ’23, New
+York, NY , USA, 2023, p. 221–232.
+[8] M. Foley, C. Hicks, K. Highnam, and V . Mavroudis, “Autonomous
+network defence using reinforcement learning,” in Proceedings of the
+2022 ACM on Asia Conference on Computer and Communications
+Security, ser. ASIA CCS ’22. New York, NY , USA: Association for
+Computing Machinery, 2022, p. 1252–1254.
+[9] M. Foley, M. Wang, Z. M, C. Hicks, and V . Mavroudis, “Inroads into
+autonomous network defence using explained reinforcement learning,”
+2023, https://arxiv.org/abs/2306.09318.
+[10] K. Heckel, “Neuroevolution for autonomous cyber defense,” in Pro-
+ceedings of the Companion Conference on Genetic and Evolutionary
+Computation, ser. GECCO ’23 Companion. New York, NY , USA:
+Association for Computing Machinery, 2023, p. 651–654.
+[11] Y . Tang, J. Sun, H. Wang, J. Deng, L. Tong, and W. Xu, “A method
+of network attack-defense game and collaborative defense decision-
+making based on hierarchical multi-agent reinforcement learning,”
+Computers & Security , vol. 142, p. 103871, 2024.
+[12] M. Kiely, D. Bowman, M. Standen, and C. Moir, “On
+autonomous agents in a cyber defence environment,” 2023,
+https://arxiv.org/abs/2309.07388?context=cs.
+[13] T. J. Richer and M. Standen, Testing and Measurements . Cham:
+Springer International Publishing, 2023, pp. 275–293. [Online].
+Available: https://doi.org/10.1007/978-3-031-29269-9 13
+[14] B. Prebot, Y . Du, X. Xi, and C. Gonzalez, “Cognitive models of dy-
+namic decisions in autonomous intelligent cyber defense,” 10 2022, 2nd
+International Conference on Autonomous Intelligent Cyber-Defense
+Agents, AICA 2022, Bordeaux, France, October 25-26, 2022.
+15
+
+--- PAGE 16 ---
+[15] Y . Du, B. Pr ´ebot, X. Xi, and C. Gonzalez, “Towards autonomous
+cyber defense: Predictions from a cognitive model,” Proceedings of
+the Human Factors and Ergonomics Society Annual Meeting , vol. 66,
+no. 1, pp. 1121–1125, 2022.
+[16] A. Applebaum et al. , “Bridging automated to autonomous cyber
+defense: Foundational analysis of tabular q-learning,” in ACM
+Workshop on Artificial Intelligence and Security , 2022. [Online].
+Available: https://doi.org/10.1145/3560830.3563732
+[17] J. Wiebe, R. A. Mallah, and L. Li, “Learning cyber defence tactics
+from scratch with multi-agent reinforcement learning,” 2023.
+[18] S. Xu, Z. Xie, C. Zhu, X. Wang, and L. Shi, “Enhancing cybersecurity
+in industrial control system with autonomous defense using normalized
+proximal policy optimization model,” in 2023 IEEE 29th International
+Conference on Parallel and Distributed Systems (ICPADS) , 2023, pp.
+928–935.
+[19] Y . Yan, Y . Zhang, and K. Huang, “Depending on yourself when
+you should: Mentoring llm with rl agents to become the master in
+cybersecurity games,” 2024, https://arxiv.org/html/2403.17674v1.
+[20] Z. Cheng, X. Wu, J. Yu, S. Yang, G. Wang, and X. Xing, “Rice:
+Breaking through the training bottlenecks of reinforcement learning
+with explanation,” 2024.
+[21] J. F. Loevenich, E. Adler, R. Mercier, A. Velazquez, and R. R. F.
+Lopes, “Design of an autonomous cyber defence agent using hybrid ai
+models,” in 2024 International Conference on Military Communication
+and Information Systems (ICMCIS) , 2024, pp. 1–10.
+[22] J. Pearl, Causality: models, reasoning and inference . Cambridge
+university press, 2009.
+[23] K. ˚Astr¨om, “Optimal control of markov processes with incomplete
+state information,” Journal of Mathematical Analysis and Applications,
+vol. 10, no. 1, pp. 174–205, 1965.
+[24] D. Silver and J. Veness, “Monte-carlo planning in large pomdps,” in
+Advances in Neural Information Processing Systems , vol. 23, 2010.
+[25] CSLE, “Cyber security learning environment,” 2023, documenta-
+tion: https://limmen.dev/csle/, traces: https://github.com/Limmen/csle/
+releases/tag/v0.4.0, source code: https://github.com/Limmen/csle, video
+demonstration: https://www.youtube.com/watch?v=iE2KPmtIs2A&,
+installation: https://www.youtube.com/watch?v=l g3sRJwwhc. [On-
+line]. Available: https://limmen.dev/csle/
+[26] B. Li, H. Wang, and G. Feng, “Adaptive hierarchical intrusion tolerant
+model based on autonomic computing,” in 2008 International Confer-
+ence on Security Technology , 2008, pp. 137–141.
+[27] J. Janisch, T. Pevn ´y, and V . Lis´y, “Nasimemu: Network attack simulator
+& emulator for training agents generalizing to novel scenarios,” in
+Computer Security. ESORICS 2023 International Workshops. Springer
+Nature Switzerland, 2024, pp. 589–608.
+[28] K. Hammar and R. Stadler, “Finding effective security strategies
+through reinforcement learning and Self-Play,” in International Con-
+ference on Network and Service Management (CNSM 2020) , Izmir,
+Turkey, 2020.
+[29] ——, “Learning intrusion prevention policies through optimal stop-
+ping,” in International Conference on Network and Service Manage-
+ment (CNSM 2021) , Izmir, Turkey, 2021, https://arxiv.org/pdf/2106.
+07160.pdf.
+[30] ——, “An online framework for adapting security policies in dynamic
+it environments,” in 18th International Conference on Network and
+Service Management (CNSM) , 2022, pp. 359–363.
+[31] ——, “Intrusion prevention through optimal stopping,” IEEE Transac-
+tions on Network and Service Management , vol. 19, no. 3, pp. 2333–
+2348, 2022.
+[32] ——, “Learning near-optimal intrusion responses against dynamic
+attackers,” IEEE Transactions on Network and Service Management ,
+vol. 21, no. 1, pp. 1158–1177, 2024.
+[33] ——, “Scalable learning of intrusion response through recursive de-
+composition,” in 14th International Conference on Decision and Game
+Theory for Security , 2023.
+[34] T. Li, G. Peng, Q. Zhu, and T. Bas ¸ar, “The confluence of networks,
+games, and learning a game-theoretic framework for multiagent deci-
+sion making over networks,” IEEE Control Systems Magazine, vol. 42,
+no. 4, pp. 35–67, 2022.
+[35] T. Kunz, C. Fisher, J. L. Novara-Gsell, C. Nguyen, and L. Li, “A
+multiagent cyberbattlesim for rl cyber operation agents,” 2023.
+[36] K. Hammar, T. Li, R. Stadler, and Q. Zhu, “Automated security
+response through online learning with adaptive conjectures,” 2024,
+https://arxiv.org/abs/2402.12499.
+[37] K. Malialis and D. Kudenko, “Multiagent router throttling: Decentral-
+ized coordinated response against ddos attacks,” in IAAI, 2013.
+[38] J. Nyberg and P. Johnson, “Training automated defense strategies
+using graph-based cyber attack simulations,” 2023, workshop on SOC
+Operations and Construction (WOSOC) 2023.
+[39] J. L. Hellerstein, Y . Diao, S. Parekh, and D. M. Tilbury, Feedback
+Control of Computing Systems . USA: Wiley & Sons, 2004.
+[40] A. Teixeira, K. C. Sou, H. Sandberg, and K. H. Johansson, “Secure
+control systems: A quantitative risk management approach,” IEEE
+Control Systems Magazine , vol. 35, no. 1, pp. 24–45, 2015.
+[41] K. Hammar and R. Stadler, “Intrusion tolerance for networked systems
+through two-level feedback control,” in 2024 54th Annual IEEE/IFIP
+International Conference on Dependable Systems and Networks (DSN),
+2024, https://arxiv.org/abs/2404.01741.
+[42] T. Li, K. Hammar, R. Stadler, and Q. Zhu, “Conjectural online learning
+with first-order beliefs in asymmetric information stochastic games,”
+2024, https://arxiv.org/abs/2402.18781.
+[43] O. P. Kreidl and T. M. Frazier, “Feedback control applied to surviv-
+ability: a host-based autonomic defense system,” IEEE Transactions on
+Reliability, vol. 53, pp. 148–166, 2004.
+[44] A. Teixeira, S. Amin, H. Sandberg, K. H. Johansson, and S. S. Sastry,
+“Cyber security analysis of state estimators in electric power systems,”
+in 49th IEEE Conference on Decision and Control (CDC) , 2010.
+[45] L.-X. Yang, P. Li, X. Yang, Y . Xiang, F. Jiang, and W. Zhou, “Effective
+quarantine and recovery scheme against advanced persistent threat,”
+IEEE Transactions on Systems, Man, and Cybernetics: Systems, vol. 51,
+no. 10, pp. 5977–5991, 2021.
+[46] H. Zhang, P. Cheng, L. Shi, and J. Chen, “Optimal denial-of-service
+attack scheduling against linear quadratic gaussian control,” in 2014
+American Control Conference, 2014, pp. 3996–4001.
+[47] A. Andrew, S. Spillard, J. Collyer, and N. Dhir, “Developing optimal
+causal cyber-defence agents via cyber security simulation,” in Proceed-
+ings of the ML4Cyber workshop, ICML 2022, Baltimore, USA, July
+17-23, 2022. PMLR, 2022.
+[48] K. Highnam, Z. Hanif, E. V . V ogt, S. Parbhoo, S. Maffeis, and
+N. R. Jennings, “Adaptive experimental design for intrusion data
+collection,” in CAMLIS’23: Conference on Applied Machine Learning
+for Information Security , 2023, https://arxiv.org/pdf/2310.13224.
+[49] D. Shi, Z. Guo, K. H. Johansson, and L. Shi, “Causality counter-
+measures for anomaly detection in cyber-physical systems,” IEEE
+Transactions on Automatic Control, vol. 63, no. 2, pp. 386–401, 2018.
+[50] W. G. Mueller, A. Memory, and K. Bartrem, “Causal discovery of
+cyber attack phases,” in 2019 18th IEEE International Conference On
+Machine Learning And Applications (ICMLA) , 2019, pp. 1348–1352.
+[51] M. Tambe, Security and Game Theory: Algorithms, Deployed Systems,
+Lessons Learned, 1st ed. USA: Cambridge University Press, 2011.
+[52] L. Buttyan and J.-P. Hubaux, Security and Cooperation in Wireless
+Networks: Thwarting Malicious and Selfish Behavior in the Age of
+Ubiquitous Computing. USA: Cambridge University Press, 2007.
+[53] P. Lau, W. Wei, L. Wang, Z. Liu, and C.-W. Ten, “A cybersecurity
+insurance model for power system reliability considering optimal
+defense resource allocation,”IEEE Transactions on Smart Grid, vol. 11,
+no. 5, pp. 4403–4414, 2020.
+[54] S. Zonouz et al. , “Rre: A game-theoretic intrusion response and
+recovery engine,” in 2009 IEEE/IFIP International Conference on
+Dependable Systems & Networks , 2009.
+[55] L. Huang and Q. Zhu, “A dynamic games approach to proactive
+defense strategies against advanced persistent threats in cyber-physical
+systems,” Computers & Security , vol. 89, p. 101660, 11 2019.
+[56] L. Zhang, T. Zhu, F. K. Hussain, D. Ye, and W. Zhou, “A game-
+theoretic method for defending against advanced persistent threats
+in cyber systems,” IEEE Transactions on Information Forensics and
+Security, vol. 18, pp. 1349–1364, 2023.
+[57] K. Hor ´ak, B. Bosansk ´y, P. Tom ´asek, C. Kiekintveld, and C. A.
+Kamhoua, “Optimizing honeypot strategies against dynamic lateral
+movement using partially observable stochastic games,” Comput. Se-
+cur., vol. 87, 2019.
+[58] O. Tsemogne, Y . Hayel, C. Kamhoua, and G. Deugoue, Partially
+Observable Stochastic Games for Cyber Deception Against Network
+Epidemic, 12 2020, pp. 312–325.
+[59] K. C. Nguyen, T. Alpcan, and T. Basar, “Stochastic games for security
+in networks with interdependent nodes,” in 2009 International Confer-
+ence on Game Theory for Networks , 2009, pp. 697–703.
+[60] A. Aydeger, M. H. Manshaei, M. A. Rahman, and K. Akkaya, “Strate-
+gic defense against stealthy link flooding attacks: A signaling game
+approach,” IEEE Transactions on Network Science and Engineering ,
+vol. 8, no. 1, pp. 751–764, 2021.
+16
+
+--- PAGE 17 ---
+[61] K. Wang, M. Du, S. Maharjan, and Y . Sun, “Strategic honeypot game
+model for distributed denial of service attacks in the smart grid,” IEEE
+Transactions on Smart Grid , vol. 8, no. 5, pp. 2474–2482, 2017.
+[62] A. Applebaum, S. Johnson, M. Limiero, and M. Smith, “Playbook
+oriented cyber response,” in 2018 National Cyber Summit (NCS), 2018,
+pp. 8–15.
+[63] M. Roesch, “Snort - lightweight intrusion detection for networks,” in
+Proceedings of the 13th USENIX Conference on System Administration,
+ser. LISA ’99. USA: USENIX Association, 1999, p. 229–238.
+[64] Trellix, “Trellix intrusion prevention system,” 2022.
+[Online]. Available: https://www.trellix.com/en-us/products/
+intrusion-prevention-system.html
+[65] B. Foo, Y .-C. Mao, and E. Spafford, “Adepts: Adaptive intrusion
+response using attack graphs in an e-commerce environment,” in
+Proceedings of the 2005 International Conference on Dependable
+Systems and Networks , ser. DSN ’05, USA, 2005, p. 508–517.
+[66] D. Yau, J. Lui, and F. Liang, “Defending against distributed denial-
+of-service attacks with max-min fair server-centric router throttles,” in
+IEEE 2002 Tenth IEEE International Workshop on Quality of Service
+(Cat. No.02EX564), 2002, pp. 35–44.
+[67] M. Castro and B. Liskov, “Practical byzantine fault tolerance and
+proactive recovery,” ACM Trans. Comput. Syst. , vol. 20, no. 4,
+p. 398–461, nov 2002. [Online]. Available: https://doi.org/10.1145/
+571637.571640
+[68] M. Rigaki, O. Luk ´aˇs, C. A. Catania, and S. Garcia, “Out of the cage:
+How stochastic parrots win in cyber security environments,” 2023,
+https://arxiv.org/abs/2308.12086.
+[69] S. Moskal, S. Laney, E. Hemberg, and U.-M. O’Reilly, “Llms killed the
+script kiddie: How agents supported by large language models change
+the landscape of network threat testing,” 2023, https://arxiv.org/abs/
+2310.06936.
+[70] U.-M. O’Reilly and E. Hemberg, “An artificial coevolutionary frame-
+work for adversarial ai,” in AAAI Fall Symposium: ALEC , 2018.
+[71] S. Moskal, E. Hemberg, and U.-M. O’Reilly, “Cyberevo: evolutionary
+search of knowledge-based behaviors in a cyber attack campaign,” in
+Proceedings of the Genetic and Evolutionary Computation Conference
+Companion, ser. GECCO ’22. New York, NY , USA: Association for
+Computing Machinery, 2022, p. 2168–2176.
+[72] R. Bronfman-Nadas, N. Zincir-Heywood, and J. T. Jacobs, “An artificial
+arms race: Could it improve mobile malware detectors?” in 2018
+Network Traffic Measurement and Analysis Conference (TMA) , 2018.
+[73] B. Jia, Z. Lin, and Y . Ma, “Advanced persistent threat detection method
+research based on relevant algorithms to artificial immune system,” in
+Trustworthy Computing and Services , L. Yueming, W. Xu, and Z. Xi,
+Eds. Berlin, Heidelberg: Springer Berlin Heidelberg, 2015, pp. 221–
+228.
+[74] M. V . Shubhra Dwivedi and S. Tripathi, “Defense against distributed
+dos attack detection by using intelligent evolutionary algorithm,”
+International Journal of Computers and Applications , vol. 44,
+no. 3, pp. 219–229, 2022. [Online]. Available: https://doi.org/10.1080/
+1206212X.2020.1720951
+[75] F. F. De Vega, “A fault tolerant optimization algorithm based on
+evolutionary computation,” in 2006 International Conference on De-
+pendability of Computer Systems , 2006, pp. 335–342.
+[76] Y . Zhang, L. Wang, and Y . Xiang, “Power system reliability analysis
+with intrusion tolerance in scada systems,”IEEE Transactions on Smart
+Grid, vol. 7, no. 2, pp. 669–683, 2016.
+[77] H. Al-Hamadi and I.-R. Chen, “Redundancy management of multi-
+path routing for intrusion tolerance in heterogeneous wireless sensor
+networks,” IEEE Transactions on Network and Service Management ,
+vol. 10, no. 2, pp. 189–203, 2013.
+[78] X. Wang and R. Stadler, “It intrusion detection using statistical learning
+and testbed measurements,” in NOMS 2024-2024 IEEE/IFIP Network
+Operations and Management Symposium , 2024, https://arxiv.org/abs/
+2402.13081.
+[79] L. Huang and Q. Zhu, “Analysis and computation of adaptive de-
+fense strategies against advanced persistent threats for cyber-physical
+systems,” in Decision and Game Theory for Security , L. Bushnell,
+R. Poovendran, and T. Bas ¸ar, Eds. Cham: Springer International
+Publishing, 2018, pp. 205–226.
+[80] H. Zhang, P. Cheng, L. Shi, and J. Chen, “Optimal denial-of-service
+attack scheduling with energy constraint,” IEEE Transactions on Au-
+tomatic Control, vol. 60, no. 11, pp. 3023–3028, 2015.
+[81] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov,
+“Proximal policy optimization algorithms,” CoRR, 2017, http:
+//arxiv.org/abs/1707.06347. [Online]. Available: http://arxiv.org/abs/
+1707.06347
+[82] W. Inc, “Wazuh - the open source security platform,” 2022. [Online].
+Available: https://wazuh.com/
+[83] J. Zhang, D. Kumor, and E. Bareinboim, “Causal imitation learning
+with unobserved confounders,” inProceedings of the 34th International
+Conference on Neural Information Processing Systems , ser. NIPS ’20,
+2020.
+[84] R. A. Fisher, The Design of Experiments. Edinburgh: Oliver and Boyd,
+1935.
+[85] I. Shpitser and J. Pearl, “Complete identification methods for the causal
+hierarchy.”Journal of Machine Learning Research, vol. 9, no. 9, 2008.
+[86] D. P. Bertsekas, Dynamic Programming and Optimal Control , 3rd ed.
+Belmont, MA, USA: Athena Scientific, 2005, vol. I.
+[87] S. A. Murphy, “Optimal dynamic treatment regimes,” Journal of the
+Royal Statistical Society Series B , vol. 65, no. 2, pp. 331–355, 2003.
+[88] S. Lee and E. Bareinboim, “Structural causal bandits with non-
+manipulable variables,” in Proceedings of the AAAI Conference on
+Artificial Intelligence, vol. 33, 2019, pp. 4164–4172.
+[89] H. W. Kuhn, Extensive games and the problem of information. Prince-
+ton, NJ: Princeton University Press, 1953.
+[90] J. Peters, D. Janzing, and B. Schlkopf, Elements of Causal Inference:
+Foundations and Learning Algorithms . The MIT Press, 2017.
+[91] W. L. Buntine, “Operations for learning with graphical models,”
+J. Artif. Int. Res. , vol. 2, no. 1, p. 159–225, dec 1994. [Online].
+Available: https://doi.org/10.1613/jair.62
+[92] C. T. Ionescu Tulcea, “Mesures dans les espaces produits,” Lincei–
+Rend. Sc. fis. mat. e nat. , vol. 7, pp. 208–211, 1949.
+[93] V . Krishnamurthy, Partially Observed Markov Decision Processes:
+From Filtering to Controlled Sensing . Cambridge University Press,
+2016.
+[94] I. Shpitser and J. Pearl, “Identification of conditional interventional
+distributions,” in Proceedings of the Twenty-Second Conference on
+Uncertainty in Artificial Intelligence, ser. UAI’06. Arlington, Virginia,
+USA: AUAI Press, 2006, p. 437–444.
+[95] S. Thrun, W. Burgard, and D. Fox, Probabilistic robotics. Cambridge,
+Mass.: MIT Press, 2005.
+[96] D. Crisan and A. Doucet, “A survey of convergence results on parti-
+cle filtering methods for practitioners,” IEEE Transactions on Signal
+Processing, vol. 50, no. 3, pp. 736–746, 2002.
+[97] C. H. Papadimitriou and J. N. Tsitsiklis, “The complexity of markov
+decision processes,” Math. Oper. Res., vol. 12, p. 441–450, Aug. 1987.
+[98] L. Kocsis and C. Szepesv ´ari, “Bandit based monte-carlo planning.”
+in ECML, ser. Lecture Notes in Computer Science, J. F ¨urnkranz,
+T. Scheffer, and M. Spiliopoulou, Eds., vol. 4212. Springer, 2006,
+pp. 282–293.
+[99] T. Lattimore and C. Szepesv ´ari, Bandit algorithms . Cambridge
+University Press, 2020.
+[100] M. Wolk, A. Applebaum, C. Dennler, P. Dwyer, M. Moskowitz,
+H. Nguyen, N. Nichols, N. Park, P. Rachwalski, F. Rau, and A. Webster,
+“Beyond cage: Investigating generalization of learned autonomous
+network defense policies,” 2022.
+[101] E. C ¸ ınlar,Probability and Stochastics , ser. Graduate Texts in Mathe-
+matics. Springer New York, 2011.
+[102] J. S. Rosenthal, A first look at rigorous probability theory , 2nd ed.
+World Scientific Publishing Co. Pte. Ltd., Hackensack, NJ, 2006.
+[103] P. Auer, N. Cesa-Bianchi, and P. Fischer, “Finite-time analysis of the
+multiarmed bandit problem,” Machine Learning , vol. 47, no. 2, pp.
+235–256, May 2002. [Online]. Available: https://doi.org/10.1023/A:
+1013689704352
+[104] T. Dam, P. Klink, C. D’Eramo, J. Peters, and J. Pajarinen, “Generalized
+mean estimation in monte-carlo tree search,” in Proceedings of the
+Twenty-Ninth International Joint Conference on Artificial Intelligence ,
+ser. IJCAI’20, 2021.
+[105] M. Standen, M. Lucas, D. Bowman, T. J. Richer, J. Kim, and
+D. Marriott, “Cyborg: A gym for the development of autonomous cyber
+agents,” CoRR, 2021, https://arxiv.org/abs/2108.09118.
+[106] T. M. Corporation, “Cve database,” 2022, https://cve.mitre.org/.
+[Online]. Available: https://cve.mitre.org/
+[107] ——, “Cwe list,” 2023, https://cwe.mitre.org/index.html. [Online].
+Available: https://cwe.mitre.org/index.html
+17

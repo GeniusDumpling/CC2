@@ -1,0 +1,41 @@
+{
+  "timesteps": 128,
+  "deterministic": true,
+  "opponents": {
+    "b_line": {
+      "returns": [
+        -2.6,
+        -2.6
+      ],
+      "mean": -2.6,
+      "std": 0.0,
+      "action_counts": {
+        "Analyse": 4,
+        "Sleep": 12
+      }
+    },
+    "meander": {
+      "returns": [
+        -0.1,
+        -0.1
+      ],
+      "mean": -0.1,
+      "std": 0.0,
+      "action_counts": {
+        "Analyse": 6,
+        "Sleep": 10
+      }
+    },
+    "sleep": {
+      "returns": [
+        0.0,
+        0.0
+      ],
+      "mean": 0.0,
+      "std": 0.0,
+      "action_counts": {
+        "Analyse": 16
+      }
+    }
+  }
+}
