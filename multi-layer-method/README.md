@@ -17,6 +17,45 @@
 
 环境固定使用本工作区 `repos/cage-challenge-2/CybORG` 中的原始 Scenario2（参考提交 `26ce1c1253fa9e2e73f25e6a7f2da32860c11257`），不使用机器上其他 CybORG 安装，也不使用 CybORG++。
 
+## 独立九组评估
+
+```powershell
+& D:\Anaconda\envs\cc2-native\python.exe multi-layer-method/evaluate.py --model multi-layer-method/runs/v1/model.zip --output multi-layer-method/runs/v1-official-score
+```
+
+`evaluate.py` 固定评估 30、50、100 步 × B_line、Meander、Sleep 九种组合。默认每组 1,000 回合，共 9,000 回合、540,000 环境步；`--episodes 100` 对应官方公开脚本的回合数量，`--episodes 1` 仅用于检查流程。无需重新训练模型。输出目录必须尚不存在。
+
+总分为九组**未折扣回合回报均值之和**，不除以 9，不按步数归一化。`evaluation.json` 保存逐回合回报、各组均值和样本标准差（仅一回合时为 null）、动作计数、模型 SHA256、设备和随机种子规则。每完成一组保存一次，只有全部完成才写入 `total_score`。
+
+使用当前联合概率最大值解码，默认 CPU、基准种子 153；每个组合第 i 回合显式使用 `153+i` 重置，以便复现。此种子协议不等同于官方描述的单次 `random.seed(153)` 随机流。对齐的是评分公式、九组配置和默认回合数；当前五动作策略、环境版本及包装器仍需在比较时说明，不能视为官方认证成绩。不估算官方总分置信区间。
+
+## 图连接与不可处置节点消融
+
+```powershell
+& D:\Anaconda\envs\cc2-native\python.exe multi-layer-method/ablate_graph.py --model multi-layer-method/runs/v1/model.zip --output multi-layer-method/runs/v1-graph-ablation --episodes 100
+```
+
+固定检查点，运行 2×2 输入消融。每组覆盖 30/50/100 步和三种对手；每个配置默认 100 回合，共 3,600 回合。子目录保存各组 `evaluation.json`，日志为 `<variant>.log`，最终 `comparison.json` 保存总分差和同种子逐回合回报差的标准误。
+
+| 组名 | 图连接 | 初始不可处置节点 |
+|---|---|---|
+| baseline | 原始出站规则图 | 保留信息 |
+| nacl | 同时检查源出站及目标入站规则的有向图 | 保留信息 |
+| suppress | 原始图 | 隔离边、保留自环、排除子网池化、清零节点特征 |
+| nacl_suppress | 入站/出站有向图 | 同 suppress |
+
+有向边按 `adjacency[接收消息节点,发送消息节点]` 存放；User→Operational 不通，反向允许。这里只表达 all/None 级别的子网规则，不声称完整模拟端口、服务或路由器拓扑。屏蔽组清零特征是因为隔离节点仍会进入策略的全局均值；固定零输入节点的常量表示和数量贡献保留，动态告警信息不再传入。真实子网归属和环境合法动作检查保持不变。只屏蔽场景配置的初始落点，不按隐藏入侵状态屏蔽主机。
+
+这是冻结模型的输入敏感性实验，不是重新训练后的模型架构比较。所有组使用相同 reset 种子，动作差异仍可能改变后续随机数消耗。报告同时给出动作成本与状态奖励，防止把减少恢复误判为防御提升。也可通过 `evaluate.py --ablation <组名>` 单独运行一组。
+
+## Restore 诊断
+
+```powershell
+& D:\Anaconda\envs\cc2-native\python.exe multi-layer-method/diagnose_restore.py --model multi-layer-method/runs/v1/model.zip --output multi-layer-method/runs/v1-restore-diagnosis
+```
+
+默认在 50、100 步、三种对手下各运行 30 回合，比较联合 argmax 与随机采样。`steps.jsonl` 记录完整动态观测、合法动作掩码、目标、恢复间隔、三层概率、动作边际概率、各动作最佳联合概率和奖励组成；`summary.json` 保存汇总和静态图输入。读取模拟器红方会话仅作事后核验，绝不传入策略。`observation_probes.json` 对实际 Restore 输入进行告警清除、初始落点断边/池化排除等敏感性实验，这些不是环境回合，不能将其解释成修改策略后的性能。当前探针针对固定 Scenario2 的 User0。模型和原始奖励不变，结束后核验模型文件哈希。
+
 ## TensorBoard 监测
 
 新训练默认将 TensorBoard 事件写入 `<output>/tensorboard/PPO_1`，同时保留终端日志和 Monitor CSV。现有 `cc2-native` 环境已安装 TensorBoard。在另一个 PowerShell 终端启动：

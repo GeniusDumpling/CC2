@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import subprocess
 import sys
+import json
 
 assert importlib.util.find_spec('method') is not None, 'Missing three-level policy implementation'
 from environment import SubnetDefenseEnv
@@ -15,6 +16,43 @@ from stable_baselines3 import PPO
 
 def main():
     torch.set_num_threads(1)
+    from ablate_graph import GraphAblationEnv, VARIANTS
+    reference = SubnetDefenseEnv(max_steps=3)
+    try:
+        initial, _ = reference.reset(seed=7)
+        for variant in VARIANTS:
+            candidate = GraphAblationEnv(variant=variant, max_steps=3)
+            try:
+                observation, _ = candidate.reset(seed=7)
+                assert np.array_equal(observation['action_mask'], initial['action_mask'])
+                assert candidate.observation_space.contains(observation)
+                u, op = candidate.hosts.index('User1'), candidate.hosts.index('Op_Server0')
+                if variant in ('nacl', 'nacl_suppress'):
+                    assert observation['adjacency'][op, u] == 0
+                    assert observation['adjacency'][u, op] == 1
+                if variant in ('suppress', 'nacl_suppress'):
+                    h = candidate.hosts.index('User0')
+                    assert observation['membership'][:, h].sum() == 0
+                    assert observation['adjacency'][h].sum() == 1
+                    assert observation['adjacency'][:, h].sum() == 1
+                    changed = {k: v.copy() for k, v in initial.items()}
+                    changed['nodes'][h] = 1
+                    transformed = candidate.transform_observation(changed)
+                    assert not transformed['nodes'][h].any()
+                    assert changed['nodes'][h].all(), 'Transform mutated source observation'
+                if variant == 'baseline':
+                    assert all(np.array_equal(observation[k], initial[k]) for k in initial)
+                reference.reset(seed=7)
+                for _ in range(3):
+                    action = np.array([candidate.n_subnets, candidate.n_hosts, 0])
+                    _, reward, terminated, truncated, _ = candidate.step(action)
+                    _, expected, end, cutoff, _ = reference.step(action)
+                    assert (reward, terminated, truncated) == (expected, end, cutoff)
+            finally:
+                candidate.close()
+    finally:
+        reference.close()
+    print('PASS: ablation edge direction, masks, suppression, identity and reward invariants')
     env = SubnetDefenseEnv(max_steps=8)
     try:
         obs, _ = env.reset(seed=7)
@@ -94,6 +132,43 @@ def main():
                 assert samples and all(np.isfinite(x.value) for x in samples), tag
                 assert samples[-1].step == 256, tag
         print('PASS: training CLI writes finite TensorBoard metrics through final update')
+        with tempfile.TemporaryDirectory() as tmp:
+            checkpoint = Path(tmp) / 'model.zip'
+            model.save(checkpoint)
+            output = Path(tmp) / 'evaluation'
+            subprocess.run([sys.executable, str(Path(__file__).with_name('evaluate.py')),
+                            '--model', str(checkpoint), '--episodes', '1',
+                            '--output', str(output)], check=True, capture_output=True, text=True)
+            report = json.loads((output / 'evaluation.json').read_text())
+            assert len(report['results']) == 9
+            assert {(r['horizon'], r['opponent']) for r in report['results']} == {
+                (h, opponent) for h in (30, 50, 100) for opponent in ('b_line', 'meander', 'sleep')}
+            for result in report['results']:
+                assert result['mean'] == result['returns'][0]
+                assert sum(result['action_counts'].values()) == result['horizon']
+                assert result['std'] is None
+            assert np.isclose(report['total_score'], sum(r['mean'] for r in report['results']))
+        print('PASS: standalone evaluation covers 9 configurations and sums their means')
+        with tempfile.TemporaryDirectory() as tmp:
+            checkpoint = Path(tmp) / 'model.zip'
+            model.save(checkpoint)
+            output = Path(tmp) / 'diagnosis'
+            subprocess.run([sys.executable, str(Path(__file__).with_name('diagnose_restore.py')),
+                            '--model', str(checkpoint), '--episodes', '1', '--horizons', '8',
+                            '--output', str(output)], check=True)
+            report = json.loads((output / 'summary.json').read_text())
+            records = [json.loads(line) for line in (output / 'steps.jsonl').read_text().splitlines()]
+            assert len(report['results']) == 6 and len(records) == 48
+            for record in records:
+                assert np.isclose(record['reward'], record['action_cost'] + record['state_reward'])
+                assert np.isclose(sum(record['action_marginal']), 1)
+                assert np.isclose(sum(record['conditional_actions']), 1)
+                assert np.isclose(record['joint_probability'], record['subnet_probability'] *
+                                  record['host_conditional_probability'] * record['conditional_actions'][record['indices'][2]])
+                if record['mode'] == 'deterministic':
+                    assert np.isclose(record['joint_probability'], record['max_joint_probability'])
+            assert report['checkpoint_unchanged']
+        print('PASS: diagnostic traces, probability factorization, reward split, checkpoint integrity')
     finally:
         env.close()
 
