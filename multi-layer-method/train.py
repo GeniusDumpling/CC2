@@ -3,7 +3,8 @@ import argparse
 import json
 from pathlib import Path
 
-from environment import SubnetDefenseEnv, RED_AGENTS
+from environment import RED_AGENTS
+from ablate_graph import GraphAblationEnv, VARIANTS
 from method import SubnetPolicy
 import numpy as np
 import torch
@@ -11,7 +12,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 
 
-def main():
+def main(default_ablation='baseline', default_run='v1'):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--steps', type=int, default=100_000)
     parser.add_argument('--seed', type=int, default=0)
@@ -19,7 +20,9 @@ def main():
     parser.add_argument('--horizon', type=int, default=50)
     parser.add_argument('--eval-episodes', type=int, default=10)
     parser.add_argument('--device', default='cpu')
-    parser.add_argument('--output', type=Path, default=Path(__file__).parent / 'runs' / 'v1')
+    parser.add_argument('--output', type=Path, default=Path(__file__).parent / 'runs' / default_run)
+    parser.add_argument('--ablation', choices=VARIANTS, default=default_ablation,
+                        help='Observation transform used for both training and evaluation')
     parser.add_argument('--load', type=Path, help='Evaluate an existing checkpoint without training')
     args = parser.parse_args()
     if args.steps < 1 or args.horizon < 1 or args.eval_episodes < 1:
@@ -29,7 +32,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     config = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
     (args.output / 'config.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
-    env = Monitor(SubnetDefenseEnv(red_agent=args.opponent, max_steps=args.horizon),
+    env = Monitor(GraphAblationEnv(variant=args.ablation, red_agent=args.opponent, max_steps=args.horizon),
                   filename=str(args.output / 'train'))
     try:
         if args.load:
@@ -46,7 +49,7 @@ def main():
             model.save(args.output / 'model')
         results = {}
         for opponent in RED_AGENTS:
-            evaluation = SubnetDefenseEnv(red_agent=opponent, max_steps=args.horizon)
+            evaluation = GraphAblationEnv(variant=args.ablation, red_agent=opponent, max_steps=args.horizon)
             returns, counts = [], {}
             try:
                 for episode in range(args.eval_episodes):
@@ -64,7 +67,8 @@ def main():
                 evaluation.close()
             results[opponent] = {'returns': returns, 'mean': float(np.mean(returns)),
                                  'std': float(np.std(returns)), 'action_counts': counts}
-        report = {'timesteps': model.num_timesteps, 'deterministic': True, 'opponents': results}
+        report = {'timesteps': model.num_timesteps, 'deterministic': True,
+                  'ablation': args.ablation, 'opponents': results}
         (args.output / 'evaluation.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
         print(json.dumps(report, indent=2))
     finally:

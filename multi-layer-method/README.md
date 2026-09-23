@@ -17,6 +17,24 @@
 
 环境固定使用本工作区 `repos/cage-challenge-2/CybORG` 中的原始 Scenario2（参考提交 `26ce1c1253fa9e2e73f25e6a7f2da32860c11257`），不使用机器上其他 CybORG 安装，也不使用 CybORG++。
 
+## v2：屏蔽 User0 后重新训练
+
+在项目根目录启动（从头训练，不加载 v1）：
+
+```powershell
+& D:\Anaconda\envs\cc2-native\python.exe multi-layer-method/train_v2.py
+```
+
+默认保存到 `multi-layer-method/runs/v2`，保留 v1 的 100,000 训练步、seed 0、Meander 对手、50 步回合及 PPO 参数。唯一实验变量为 `suppress`：User0 特征清零、隔离边并保留自环、排除子网池化。训练和训练结束的三对手评估使用同一设置，配置及评估报告记录 `ablation`。TensorBoard 写入 `runs/v2/tensorboard`。`train.py` 仍默认使用 v1 的 baseline；两个入口支持相同命令行参数，输出目录必须尚不存在。
+
+训练完成后，用相同屏蔽设置进行九组评估（100 回合可对照已有消融）：
+
+```powershell
+& D:\Anaconda\envs\cc2-native\python.exe multi-layer-method/evaluate.py --model multi-layer-method/runs/v2/model.zip --ablation suppress --episodes 100 --output multi-layer-method/runs/v2-official-score
+```
+
+独立评估必须带 `--ablation suppress`，检查点不会自动选择预处理。仅检查 v2 接线、不执行训练：`python multi-layer-method/test_v2.py`。
+
 ## 独立九组评估
 
 ```powershell
